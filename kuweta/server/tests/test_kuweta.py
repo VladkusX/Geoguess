@@ -148,3 +148,15 @@ def test_migration_is_idempotent(tmp_path):
     n1 = core.connect(path).execute("SELECT COUNT(*) FROM messages").fetchone()[0]
     n2 = core.connect(path).execute("SELECT COUNT(*) FROM messages").fetchone()[0]
     assert n1 == n2 > 0
+
+
+def test_reseed_keeps_custom_messages(tmp_path):
+    path = str(tmp_path / "r.db")
+    conn = core.connect(path)
+    conn.execute("INSERT INTO messages (category, level, text) VALUES ('reminder', 2, 'mój tekst')")
+    conn.execute("UPDATE messages SET text = 'stary' WHERE builtin = 1")
+    conn.execute("UPDATE household SET seed_version = 2")
+    conn = core.connect(path)
+    texts = [r[0] for r in conn.execute("SELECT text FROM messages")]
+    assert "mój tekst" in texts and "stary" not in texts
+    assert any("kurwa" in t.lower() for t in texts)

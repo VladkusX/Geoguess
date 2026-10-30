@@ -11,7 +11,7 @@ from typing import Callable
 from zoneinfo import ZoneInfo
 
 from . import schedule
-from .messages import CAT_MESSAGES, DEFAULT_MESSAGES
+from .messages import DEFAULT_MESSAGES, SEED_VERSION
 
 TZ = ZoneInfo(os.environ.get("KUWETA_TZ", "Europe/Warsaw"))
 MAX_USERS = 2
@@ -118,14 +118,13 @@ def migrate(conn: sqlite3.Connection) -> None:
     if "seed_version" not in cols:
         conn.execute("ALTER TABLE household ADD COLUMN seed_version INTEGER NOT NULL DEFAULT 0")
     version = conn.execute("SELECT seed_version FROM household WHERE id = 1").fetchone()[0]
-    if version == 0 and conn.execute("SELECT COUNT(*) FROM messages").fetchone()[0]:
-        version = 1  # baza sprzed wersjonowania
-    insert = "INSERT INTO messages (category, level, text, builtin) VALUES (?, ?, ?, 1)"
-    if version < 1:
-        conn.executemany(insert, DEFAULT_MESSAGES)
-    if version < 2:
-        conn.executemany(insert, CAT_MESSAGES)
-    conn.execute("UPDATE household SET seed_version = 2 WHERE id = 1")
+    if version < SEED_VERSION:
+        # Nowa pula wbudowanych tekstów. Teksty dopisane przez admina (builtin = 0) zostają.
+        conn.execute("DELETE FROM messages WHERE builtin = 1")
+        conn.executemany(
+            "INSERT INTO messages (category, level, text, builtin) VALUES (?, ?, ?, 1)", DEFAULT_MESSAGES
+        )
+        conn.execute("UPDATE household SET seed_version = ? WHERE id = 1", (SEED_VERSION,))
 
 
 # ---------- zdarzenia (push przez SSE) ----------
@@ -399,10 +398,10 @@ def decide_extension(conn, bus: Bus, user: sqlite3.Row, ext_id: int, approve: bo
             ((base + timedelta(days=1)).isoformat(),),
         )
         bus.notify(ext["requester_id"], "ext_decided", "Masz dzień zwłoki",
-                   f"{user['name']} się zgodził(a). Jutro nie ma zmiłuj.")
+                   f"{user['name']} się zgodził(a). Jutro nie ma chuja we wsi.")
     else:
         bus.notify(ext["requester_id"], "ext_decided", "Odmowa",
-                   f"{user['name']} mówi NIE. Łopatka w dłoń, dziś.")
+                   f"{user['name']} mówi NIE. Łopatka w łapę i zapierdalaj, dziś.")
     bus.state_changed()
     return {"status": status}
 
