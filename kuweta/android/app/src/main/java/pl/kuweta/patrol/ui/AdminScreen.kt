@@ -24,6 +24,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import android.net.Uri
@@ -240,9 +241,15 @@ private fun SoundsCard(d: AdminOverview, onResult: (AdminOverview) -> Unit, onMe
         Text("Wgraj krótki plik (mp3, ogg, wav, m4a, do 2 MB), np. nagranie swojego kota. Oba telefony pobiorą go same.", style = MaterialTheme.typography.bodySmall)
         SLOT_LABELS.forEach { (slot, label) ->
             val current = d.soundSlots[slot]
+            // Etykieta w osobnej linii: długa nazwa pliku nie może jej ścisnąć do zera.
+            Text("$label:", fontWeight = FontWeight.Bold)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("$label:", fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                Text(current?.name ?: if (slot == "reminder") "miau (domyślne)" else "mrrp (domyślne)")
+                Text(
+                    current?.name ?: if (slot == "reminder") "miau (domyślne)" else "mrrp (domyślne)",
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
                 Chip("▶", false, {
                     val item = current?.let { c -> d.sounds.firstOrNull { it.id == c.id } }
                     if (item != null) preview(item) else SoundPlayer.preview(context, SoundPlayer.defaultUri(context, slot))
@@ -252,8 +259,10 @@ private fun SoundsCard(d: AdminOverview, onResult: (AdminOverview) -> Unit, onMe
         d.sounds.forEach { item ->
             BrutalCard(shadow = 2.dp) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("♪ ${item.name}", fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                    Text("${item.size / 1024} kB", style = MaterialTheme.typography.bodySmall)
+                    Column(Modifier.weight(1f)) {
+                        Text("♪ ${item.name}", fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        Text("${item.size / 1024} kB", style = MaterialTheme.typography.bodySmall)
+                    }
                     Chip("▶", false, { preview(item) })
                     Chip("✕", false, { call("Usunięte") { it.deleteSound(item.id) } })
                 }
