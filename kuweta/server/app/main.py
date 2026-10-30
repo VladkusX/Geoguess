@@ -162,6 +162,8 @@ async def decide_extension(ext_id: int, body: DecideIn, user=Depends(current_use
 async def test_notify(user=Depends(current_user)):
     body = core.fmt(core.pick_message(conn, "reminder", 2), conn, name=user["name"], partner="", days=0)
     bus.notify(user["id"], "test", "Test powiadomień", body, ttl_min=10)
+    # Drugi test na kanale „Od drugiej osoby” (info o sprzątnięciu, prośby, donosy).
+    bus.notify(user["id"], "test_partner", "Test: od drugiej osoby", "Tak wygląda info, że druga osoba ogarnęła kuwetę.", ttl_min=10)
     return {"ok": True}
 
 

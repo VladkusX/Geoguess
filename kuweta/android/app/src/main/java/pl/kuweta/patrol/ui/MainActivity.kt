@@ -56,15 +56,12 @@ import pl.kuweta.patrol.push.Watchdog
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val transparent = android.graphics.Color.TRANSPARENT
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.light(transparent, transparent),
+            navigationBarStyle = SystemBarStyle.dark(transparent),
+        )
         setContent {
-            val dark = ThemeState.theme.dark
-            LaunchedEffect(dark) {
-                val transparent = android.graphics.Color.TRANSPARENT
-                enableEdgeToEdge(
-                    statusBarStyle = if (dark) SystemBarStyle.dark(transparent) else SystemBarStyle.light(transparent, transparent),
-                    navigationBarStyle = SystemBarStyle.dark(transparent),
-                )
-            }
             KuwetaTheme {
                 Root()
             }

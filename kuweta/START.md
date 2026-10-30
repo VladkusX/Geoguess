@@ -56,9 +56,7 @@ Aplikacja na Androida dla dwóch osób, która wulgarnie przypomina o sprzątani
   - Admin: pięciobrygadówka `R R P P N N - - - -`.
   - Druga osoba: pn–pt, rotacja tygodniowa `N×5 - - P×5 - - R×5 - -`.
   - Godziny zmian 6–14, 14–22, 22–6.
-- **Motywy:** Brutal (domyślny, żółto-czarny), Arcade (pikselowy), Pastel, Nocka (ciemny), Piekło (czerń i krew, gotyk). Wybór na ekranie Start, osobno na każdym telefonie. Widżet przyjmuje kolory motywu.
-  - Kolory czyta się przez gettery `Yellow`/`Ink`/`Paper`/... z `ThemeState`, więc nie twórz statycznych map kolorów (patrz `SHIFT_COLORS` jako getter).
-  - Rozmiary czcionek ustawiaj przez `dsp()`/`bsp()`.
+- **Wygląd:** tylko Brutal (żółto-czarny). Inne motywy usunięte na prośbę użytkownika (kuweta-19), nie przywracaj. Kolory to stałe `Yellow`/`Ink`/`Paper`/... w `Theme.kt`, rozmiary czcionek przez `dsp()`/`bsp()`.
 
 ## Użytkownicy i sprzęt
 
@@ -78,11 +76,11 @@ Aplikacja na Androida dla dwóch osób, która wulgarnie przypomina o sprzątani
 
 ## Stan na 30.10.2026 wieczór
 
-- **Ostatnia wersja:** APK `kuweta-16` (motywy i widżet w motywach), commit `0637dfd`. Serwer: obraz `latest` z tej samej gałęzi. Użytkownik zrobił `pull` po zmianie eskalacji.
+- **Ostatnia wersja:** APK `kuweta-19` (auto-przedłużenie z poziomem 4, zapasowe dostarczanie zdarzeń, tylko motyw Brutal, test kanału „Od drugiej osoby”). Serwer: obraz `latest` z tej samej gałęzi.
+- **Brak info o sprzątnięciu (30.10, 16:20):** serwer wysłał zdarzenie 31 do Vlada, telefon go nie pokazał. Do sprawdzenia: czy na POCO dochodzi test „Od drugiej osoby” i czy kanał nie jest wyłączony.
 - **Otwarte sprawy:**
-  - Zrzuty ekranu motywów Arcade i Piekło. Pikselowa czcionka może się nie mieścić, popraw, co wyjdzie.
   - **Zegarek:** użytkownik chce miauczenia na zegarku i mówi, że jego zegarek obsługuje dźwięk. Czekamy na dokładny model. Jeśli to Wear OS, trzeba zrobić osobną małą aplikację na zegarek, bo przekazane powiadomienie nie niesie pliku dźwięku.
   - Sprawdzić, czy na POCO przypomnienia dochodzą po 30+ min blokady, przy ukrytym powiadomieniu usługi. Jeśli nie, przywrócić widoczny kanał.
   - Parowanie drugiej osoby i jej grafik: nie wiadomo, czy już zrobione.
   - Propozycja uporządkowania release'ów (oznaczenie „Latest”, usunięcie starych): czeka na decyzję.
-  - Z listy pomysłów użytkownik wybrał tylko widżet w kolorach motywu (zrobione). Reszta (zdjęcie jako dowód, osiągnięcia, zapas żwirku, tryb urlopu, raport tygodniowy) odrzucona na razie.
+  - Z listy pomysłów użytkownik wybrał tylko widżet w kolorach motywu (zrobione, potem motywy usunięte). Reszta (zdjęcie jako dowód, osiągnięcia, zapas żwirku, tryb urlopu, raport tygodniowy) odrzucona na razie.

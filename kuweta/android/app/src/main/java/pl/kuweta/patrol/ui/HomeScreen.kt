@@ -12,8 +12,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -163,7 +161,6 @@ fun HomeScreen(onLogout: () -> Unit) {
         error?.let { Text("Offline: $it", color = Orange) }
 
         BatteryCard()
-        ThemeCard()
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             BrutalButton("Test powiadomienia", { act({ it.testNotify() }, "Wysłane. Powinno przyjść za sekundę.") }, Modifier.weight(1f), bg = Paper, fg = Ink, small = true, enabled = !busy)
@@ -421,19 +418,4 @@ private fun openAppSettings(context: Context) {
     context.startActivity(
         Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}"))
     )
-}
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun ThemeCard() {
-    val context = LocalContext.current
-    BrutalCard {
-        Text("MOTYW", style = MaterialTheme.typography.titleMedium)
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            AppTheme.entries.forEach { t ->
-                Chip(t.label, ThemeState.theme == t, { ThemeState.set(context, t) })
-            }
-        }
-        Text("Motyw jest twój, drugi telefon ma swój.", style = MaterialTheme.typography.bodySmall)
-    }
 }

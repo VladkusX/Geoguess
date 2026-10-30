@@ -1,6 +1,5 @@
 package pl.kuweta.patrol.ui
 
-import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -20,12 +19,9 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.Typography
-import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
@@ -41,86 +37,26 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import pl.kuweta.patrol.R
-import pl.kuweta.patrol.widget.KuwetaWidget
 
-/**
- * Motywy aplikacji. Nazwy tokenów (Yellow, Ink...) pochodzą z pierwszego motywu "Brutal",
- * w innych motywach znaczą to samo co tam: Yellow = tło ekranu, Ink = linie i tekst,
- * Paper = karty, Orange = alarm, Grey = sen/wyciszone, Mint = OK, Shadow = twardy cień.
- */
-enum class AppTheme(
-    val label: String,
-    val bg: Long, val line: Long, val card: Long, val alert: Long, val muted: Long, val ok: Long, val shadow: Long,
-    val dark: Boolean,
-    val display: Int, val body: Int, val bodyBold: Int,
-    val displayScale: Float, val bodyScale: Float,
-) {
-    BRUTAL(
-        "Brutal", 0xFFFFE14D, 0xFF111111, 0xFFFFFFFF, 0xFFFF5A36, 0xFFCFCFCF, 0xFF3EF08A, 0xFF111111,
-        false, R.font.archivo_black, R.font.space_mono, R.font.space_mono_bold, 1f, 1f,
-    ),
-    ARCADE(
-        "Arcade", 0xFF14102B, 0xFFE8E2FF, 0xFF221A4A, 0xFFFF3FA4, 0xFF3A2F66, 0xFF3EF08A, 0xFF000000,
-        true, R.font.press_start, R.font.vt323, R.font.vt323, 0.6f, 1.4f,
-    ),
-    PASTEL(
-        "Pastel", 0xFFF3E8FF, 0xFF3B2F5C, 0xFFFFFFFF, 0xFFFF8FB8, 0xFFDDD3F0, 0xFF7DE0B5, 0xFFC7B6F2,
-        false, R.font.baloo_extrabold, R.font.baloo_semibold, R.font.baloo_extrabold, 1f, 1.05f,
-    ),
-    NOCKA(
-        "Nocka", 0xFF121212, 0xFFFFE14D, 0xFF1E1E1E, 0xFFFF5A36, 0xFF3A3A3A, 0xFF3EF08A, 0xFFFFE14D,
-        true, R.font.archivo_black, R.font.space_mono, R.font.space_mono_bold, 1f, 1f,
-    ),
-    PIEKLO(
-        "Piekło", 0xFF0B0000, 0xFFFF3B3B, 0xFF1A0606, 0xFFFF8A00, 0xFF3D0C0C, 0xFF9BE22D, 0xFF8B0000,
-        true, R.font.grenze_gotisch, R.font.special_elite, R.font.special_elite, 1.1f, 1f,
-    ),
-}
+val Yellow = Color(0xFFFFE14D)
+val Ink = Color(0xFF111111)
+val Paper = Color(0xFFFFFFFF)
+val Orange = Color(0xFFFF5A36)
+val Grey = Color(0xFFCFCFCF)
+val Mint = Color(0xFF3EF08A)
+val Shadow = Color(0xFF111111)
 
-object ThemeState {
-    var theme by mutableStateOf(AppTheme.BRUTAL)
-        private set
+val Archivo = FontFamily(Font(R.font.archivo_black))
+val Mono = FontFamily(Font(R.font.space_mono, FontWeight.Normal), Font(R.font.space_mono_bold, FontWeight.Bold))
 
-    private fun prefs(context: Context) = context.getSharedPreferences("kuweta_ui", Context.MODE_PRIVATE)
+/** Rozmiar dla czcionki tytułowej. */
+fun dsp(v: Int): TextUnit = v.sp
 
-    fun load(context: Context) {
-        theme = runCatching { AppTheme.valueOf(prefs(context).getString("theme", null) ?: "BRUTAL") }
-            .getOrDefault(AppTheme.BRUTAL)
-    }
-
-    fun set(context: Context, t: AppTheme) {
-        theme = t
-        prefs(context).edit().putString("theme", t.name).apply()
-        KuwetaWidget.updateAll(context)
-    }
-}
-
-val Yellow: Color get() = Color(ThemeState.theme.bg)
-val Ink: Color get() = Color(ThemeState.theme.line)
-val Paper: Color get() = Color(ThemeState.theme.card)
-val Orange: Color get() = Color(ThemeState.theme.alert)
-val Grey: Color get() = Color(ThemeState.theme.muted)
-val Mint: Color get() = Color(ThemeState.theme.ok)
-val Shadow: Color get() = Color(ThemeState.theme.shadow)
-
-private val fontCache = mutableMapOf<AppTheme, Pair<FontFamily, FontFamily>>()
-
-private fun fonts(t: AppTheme) = fontCache.getOrPut(t) {
-    FontFamily(Font(t.display)) to FontFamily(Font(t.body, FontWeight.Normal), Font(t.bodyBold, FontWeight.Bold))
-}
-
-val Archivo: FontFamily get() = fonts(ThemeState.theme).first
-val Mono: FontFamily get() = fonts(ThemeState.theme).second
-
-/** Rozmiar dla czcionki tytułowej, przeskalowany do motywu (pikselowa jest dużo szersza). */
-fun dsp(v: Int): TextUnit = (v * ThemeState.theme.displayScale).sp
-
-/** Rozmiar dla czcionki tekstu, przeskalowany do motywu. */
-fun bsp(v: Int): TextUnit = (v * ThemeState.theme.bodyScale).sp
+/** Rozmiar dla czcionki tekstu. */
+fun bsp(v: Int): TextUnit = v.sp
 
 @Composable
 fun KuwetaTheme(content: @Composable () -> Unit) {
-    val t = ThemeState.theme
     val typography = Typography(
         bodyLarge = TextStyle(fontFamily = Mono, fontSize = bsp(15), color = Ink),
         bodyMedium = TextStyle(fontFamily = Mono, fontSize = bsp(13), color = Ink),
@@ -128,12 +64,9 @@ fun KuwetaTheme(content: @Composable () -> Unit) {
         labelLarge = TextStyle(fontFamily = Archivo, fontSize = dsp(15)),
         titleLarge = TextStyle(fontFamily = Archivo, fontSize = dsp(22), color = Ink),
         titleMedium = TextStyle(fontFamily = Archivo, fontSize = dsp(17), color = Ink),
-        headlineLarge = TextStyle(fontFamily = Archivo, fontSize = dsp(36), lineHeight = dsp(if (t == AppTheme.ARCADE) 46 else 36), color = Ink),
+        headlineLarge = TextStyle(fontFamily = Archivo, fontSize = dsp(36), lineHeight = dsp(36), color = Ink),
     )
-    val colors = if (t.dark) darkColorScheme(
-        primary = Ink, onPrimary = Yellow, secondary = Orange, onSecondary = Paper,
-        background = Yellow, onBackground = Ink, surface = Paper, onSurface = Ink,
-    ) else lightColorScheme(
+    val colors = lightColorScheme(
         primary = Ink, onPrimary = Yellow, secondary = Orange, onSecondary = Paper,
         background = Yellow, onBackground = Ink, surface = Paper, onSurface = Ink,
     )
@@ -275,4 +208,4 @@ fun daysWord(n: Int): String = if (n == 1) "dzień" else "dni"
 
 val SHIFT_NAMES = mapOf("R" to "rano", "P" to "popołudnie", "N" to "nocka", "-" to "wolne")
 
-val SHIFT_COLORS: Map<String, Color> get() = mapOf("R" to Mint, "P" to Orange, "N" to Ink, "-" to Paper)
+val SHIFT_COLORS: Map<String, Color> = mapOf("R" to Mint, "P" to Orange, "N" to Ink, "-" to Paper)
