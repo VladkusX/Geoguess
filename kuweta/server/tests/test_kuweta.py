@@ -178,3 +178,15 @@ def test_ile_dni_and_placeholders(env):
         out = core.fmt(text, conn, name="Vlad", partner="Ania", days=2)
         assert "{" not in out, text
     assert conn.execute("SELECT COUNT(*) FROM messages").fetchone()[0] >= 140
+
+
+def test_pool_mentions_cats_and_drops_old_texts(tmp_path):
+    path = str(tmp_path / "v.db")
+    conn = core.connect(path)
+    conn.execute("INSERT INTO messages (category, level, text, builtin) VALUES ('reminder', 1, 'Ej, {name}. Kuweta. Wiesz co robić.', 1)")
+    conn.execute("UPDATE household SET seed_version = 4")
+    conn = core.connect(path)
+    texts = [r[0] for r in conn.execute("SELECT text FROM messages")]
+    assert "Ej, {name}. Kuweta. Wiesz co robić." not in texts
+    with_cats = [t for t in texts if "{cat}" in t or "{cats}" in t]
+    assert len(with_cats) / len(texts) > 0.75

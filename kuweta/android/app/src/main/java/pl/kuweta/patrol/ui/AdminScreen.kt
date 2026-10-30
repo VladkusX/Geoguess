@@ -44,7 +44,7 @@ import pl.kuweta.patrol.data.Prefs
 import pl.kuweta.patrol.data.Repo
 
 private val INTERVALS = listOf(10, 15, 20, 30, 45, 60, 90, 120)
-private val LEVELS = mapOf(1 to "łagodnie", 2 to "z jajem", 3 to "ostro", 4 to "bez litości")
+private val LEVELS = mapOf(1 to "średnio", 2 to "z jajem", 3 to "ostro", 4 to "bez litości")
 private val CATEGORIES = linkedMapOf(
     "reminder" to "Przypomnienia",
     "extension" to "Po przedłużeniu",
