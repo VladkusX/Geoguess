@@ -173,12 +173,12 @@ fun ScheduleScreen() {
                 BrutalButton("+ dzień", { update { copy(cycle = cycle + "-") } }, Modifier.weight(1f), bg = Paper, fg = Ink, small = true)
                 BrutalButton("− dzień", { if (cur.cycle.size > 1) update { copy(cycle = cycle.dropLast(1)) } }, Modifier.weight(1f), bg = Paper, fg = Ink, small = true)
             }
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Dzień 1 cyklu:", modifier = Modifier.weight(1f))
-                Chip(cur.cycleStart ?: "wybierz", false, {
-                    pickDate(context, cur.cycleStart) { picked -> update { copy(cycleStart = picked) } }
-                })
-            }
+            Text("Dzień 1 cyklu to data, od której liczy się kolumna „1” powyżej (np. twoja pierwsza ranna zmiana).", style = MaterialTheme.typography.bodySmall)
+            BrutalButton(
+                "📅 Dzień 1 cyklu: ${prettyDate(cur.cycleStart)} · zmień",
+                { pickDate(context, cur.cycleStart) { picked -> update { copy(cycleStart = picked) } } },
+                bg = Yellow, fg = Ink, small = true,
+            )
         }
 
         MonthCalendar(cur) { date, code ->
@@ -343,3 +343,7 @@ private fun TimeField(value: String, onChange: (String) -> Unit, label: String, 
         )
     }
 }
+
+fun prettyDate(iso: String?): String =
+    iso?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+        ?.let { "%02d.%02d.%d".format(it.dayOfMonth, it.monthValue, it.year) } ?: "nie ustawiony"

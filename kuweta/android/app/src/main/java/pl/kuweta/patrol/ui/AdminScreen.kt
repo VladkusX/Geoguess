@@ -136,15 +136,12 @@ fun AdminScreen() {
                     })
                 }
             }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Termin:", modifier = Modifier.weight(1f))
-                Chip(d.dueDate ?: "wybierz", false, {
-                    pickDate(context, d.dueDate) { picked ->
-                        val who = d.assigneeId ?: d.users.first().id
-                        act({ it.adminState(who, picked) }, "Termin ustawiony")
-                    }
-                })
-            }
+            BrutalButton("📅 Termin kuwety: ${prettyDate(d.dueDate)} · zmień", {
+                pickDate(context, d.dueDate) { picked ->
+                    val who = d.assigneeId ?: d.users.first().id
+                    act({ it.adminState(who, picked) }, "Termin ustawiony")
+                }
+            }, bg = Yellow, fg = Ink, small = true)
         }
 
         BrutalCard {
