@@ -130,3 +130,21 @@ def test_state_shape(env):
     assert st["duty"]["is_me"] and st["partner"]["name"] == "Ania"
     assert st["duty"]["next_name"] == "Ania"
     assert len(st["upcoming"]) == 14
+
+
+def test_cat_names_in_messages(env):
+    conn, bus, ua, ub = env
+    assert core.set_cats(conn, [" Beżi ", "Mruczek", ""]) == ["Beżi", "Mruczek"]
+    assert core.fmt("{cat} patrzy", conn) in ("Beżi patrzy", "Mruczek patrzy")
+    assert core.fmt("{cats} czekają", conn) == "Beżi i Mruczek czekają"
+    core.set_cats(conn, [])
+    assert core.fmt("{cats}/{cat}", conn) == "Koty/Kot"
+    assert conn.execute("SELECT COUNT(*) FROM messages WHERE text LIKE '%{cat}%'").fetchone()[0] > 0
+    assert core.state(conn, ua)["cats"] == []
+
+
+def test_migration_is_idempotent(tmp_path):
+    path = str(tmp_path / "m.db")
+    n1 = core.connect(path).execute("SELECT COUNT(*) FROM messages").fetchone()[0]
+    n2 = core.connect(path).execute("SELECT COUNT(*) FROM messages").fetchone()[0]
+    assert n1 == n2 > 0

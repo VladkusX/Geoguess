@@ -10,13 +10,16 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -41,6 +44,7 @@ import pl.kuweta.patrol.data.Prefs
 import pl.kuweta.patrol.data.Repo
 import pl.kuweta.patrol.data.ScheduleSettings
 import java.time.LocalDate
+import java.time.YearMonth
 import java.time.format.TextStyle
 import java.time.temporal.ChronoUnit
 import java.util.Locale
@@ -77,6 +81,23 @@ fun ScheduleScreen() {
     var message by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
 
+    fun save(next: ScheduleSettings, done: String = "Zapisane.") {
+        s = next
+        busy = true
+        scope.launch {
+            try {
+                val api = Api(Prefs(context))
+                s = targetId?.let { api.saveScheduleFor(it, next) } ?: api.saveSchedule(next)
+                message = done
+                Repo.refresh(context)
+            } catch (e: ApiException) {
+                message = e.message
+            } finally {
+                busy = false
+            }
+        }
+    }
+
     LaunchedEffect(targetId) {
         try {
             val api = Api(Prefs(context))
@@ -96,6 +117,7 @@ fun ScheduleScreen() {
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         Sticker("Grafik zmian")
+        Text("Grafik ustawiasz raz: cykl powtarza się sam w nieskończoność. Urlop, zamianę albo nadgodziny poprawiasz, stukając dzień w kalendarzu.", style = MaterialTheme.typography.bodySmall)
         if (isAdmin && people.size > 1) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Chip("Mój", targetId == null, { targetId = null })
@@ -158,33 +180,12 @@ fun ScheduleScreen() {
             }
         }
 
-        BrutalCard {
-            SectionTitle("Podgląd 14 dni")
-            val today = LocalDate.now()
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                for (i in 0 until 14) {
-                    val day = today.plusDays(i.toLong())
-                    val code = shiftCodeFor(cur, day)
-                    val bg = SHIFT_COLORS[code] ?: Paper
-                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(38.dp)) {
-                        Text(
-                            day.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale("pl")).take(2) + " " + day.dayOfMonth,
-                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 9.sp),
-                        )
-                        Text(
-                            if (code == "-") "·" else code,
-                            fontWeight = FontWeight.Bold,
-                            color = if (bg == Ink) Yellow else Ink,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(bg)
-                                .border(2.dp, Ink)
-                                .padding(vertical = 4.dp),
-                        )
-                    }
-                }
-            }
+        MonthCalendar(cur) { date, code ->
+            val key = date.toString()
+            val base = shiftCodeFor(cur.copy(overrides = emptyMap()), date)
+            val next = if (code == null || code == base) cur.copy(overrides = cur.overrides - key)
+            else cur.copy(overrides = cur.overrides + (key to code))
+            save(next, "Zapisane: $key → ${SHIFT_NAMES[code ?: base] ?: base}")
         }
 
         BrutalCard {
@@ -211,39 +212,8 @@ fun ScheduleScreen() {
             Text("Po rannej zmianie nie ma snu. Po popołudniówce i nocce przez „męczenie po robocie” powiadomienia jeszcze lecą, potem cisza.", style = MaterialTheme.typography.bodySmall)
         }
 
-        BrutalCard {
-            SectionTitle("Wyjątki (urlop, L4, zamiana)")
-            cur.overrides.toSortedMap().forEach { (date, code) ->
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("$date · ${SHIFT_NAMES[code] ?: code}", modifier = Modifier.weight(1f))
-                    Chip("usuń", false, { update { copy(overrides = overrides - date) } })
-                }
-            }
-            var newCode by remember { mutableStateOf("-") }
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                CODES.forEach { c -> Chip(SHIFT_NAMES.getValue(c), newCode == c, { newCode = c }) }
-            }
-            BrutalButton("+ dodaj dzień", {
-                pickDate(context, null) { picked -> update { copy(overrides = overrides + (picked to newCode)) } }
-            }, bg = Paper, fg = Ink, small = true)
-        }
-
         message?.let { Text(it, fontWeight = FontWeight.Bold) }
-        BrutalButton(if (busy) "Zapisuję…" else "Zapisz grafik", enabled = !busy, onClick = {
-            busy = true
-            scope.launch {
-                try {
-                    val api = Api(Prefs(context))
-                    s = targetId?.let { api.saveScheduleFor(it, cur) } ?: api.saveSchedule(cur)
-                    message = "Zapisane."
-                    Repo.refresh(context)
-                } catch (e: ApiException) {
-                    message = e.message
-                } finally {
-                    busy = false
-                }
-            }
-        })
+        BrutalButton(if (busy) "Zapisuję…" else "Zapisz grafik", enabled = !busy, onClick = { save(cur) })
     }
 }
 
@@ -254,5 +224,95 @@ private fun NumberRow(label: String, value: Int, onChange: (Int) -> Unit) {
         Chip("−", false, { onChange((value - if (value > 20) 15 else 1).coerceAtLeast(0)) })
         Text("$value", fontWeight = FontWeight.Bold, modifier = Modifier.width(36.dp), textAlign = TextAlign.Center)
         Chip("+", false, { onChange(value + if (value >= 20) 15 else 1) })
+    }
+}
+
+private val WEEKDAYS = listOf("Pn", "Wt", "Śr", "Cz", "Pt", "So", "Nd")
+
+/** Miesiąc z grafiku. Stuknięcie dnia pozwala go nadpisać (urlop, zamiana, nadgodziny). */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun MonthCalendar(s: ScheduleSettings, onDayChange: (LocalDate, String?) -> Unit) {
+    var month by remember { mutableStateOf(YearMonth.now()) }
+    var editing by remember { mutableStateOf<LocalDate?>(null) }
+    val today = LocalDate.now()
+
+    BrutalCard {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Chip("◀", false, { month = month.minusMonths(1) })
+            Text(
+                month.month.getDisplayName(TextStyle.FULL_STANDALONE, Locale("pl")).uppercase() + " " + month.year,
+                style = MaterialTheme.typography.titleMedium,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.weight(1f),
+            )
+            Chip("▶", false, { month = month.plusMonths(1) })
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+            WEEKDAYS.forEach {
+                Text(it, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center, modifier = Modifier.weight(1f))
+            }
+        }
+        val offset = month.atDay(1).dayOfWeek.value - 1
+        val days = month.lengthOfMonth()
+        val rows = (offset + days + 6) / 7
+        for (r in 0 until rows) {
+            Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                for (c in 0 until 7) {
+                    val dayNum = r * 7 + c - offset + 1
+                    if (dayNum < 1 || dayNum > days) {
+                        Spacer(Modifier.weight(1f))
+                        continue
+                    }
+                    val date = month.atDay(dayNum)
+                    val code = shiftCodeFor(s, date)
+                    val changed = s.overrides.containsKey(date.toString())
+                    val bg = SHIFT_COLORS[code] ?: Paper
+                    val fg = if (bg == Ink) Yellow else Ink
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier
+                            .weight(1f)
+                            .background(bg)
+                            .border(if (changed || date == today) 3.dp else 1.5.dp, if (changed) Orange else Ink)
+                            .clickable { editing = date }
+                            .padding(vertical = 3.dp),
+                    ) {
+                        Text("$dayNum", style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.sp), color = fg)
+                        Text(if (code == "-") "·" else code, fontWeight = FontWeight.Bold, color = fg)
+                    }
+                }
+            }
+        }
+        Text("Gruba czarna ramka: dziś. Pomarańczowa: dzień zmieniony ręcznie.", style = MaterialTheme.typography.bodySmall)
+    }
+
+    editing?.let { date ->
+        val label = date.dayOfWeek.getDisplayName(TextStyle.FULL, Locale("pl")) + ", " + date
+        AlertDialog(
+            onDismissRequest = { editing = null },
+            containerColor = Paper,
+            title = { Text(label, style = MaterialTheme.typography.titleMedium) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Co tego dnia?")
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        CODES.forEach { c ->
+                            Chip(SHIFT_NAMES.getValue(c), shiftCodeFor(s, date) == c, {
+                                onDayChange(date, c)
+                                editing = null
+                            })
+                        }
+                    }
+                    if (s.overrides.containsKey(date.toString())) {
+                        Chip("↺ jak w grafiku", false, {
+                            onDayChange(date, null)
+                            editing = null
+                        })
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { editing = null }) { Text("Zamknij", color = Ink) } },
+        )
     }
 }

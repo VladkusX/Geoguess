@@ -9,6 +9,8 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
+import kotlinx.serialization.json.add
+import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -109,6 +111,11 @@ class Api(private val prefs: Prefs) {
     suspend fun adminState(assigneeId: Int, dueDate: String): AdminOverview {
         val body = buildJsonObject { put("assignee_id", assigneeId); put("due_date", dueDate) }
         return json.decodeFromString(call("PUT", "/api/admin/state", body.toString()))
+    }
+
+    suspend fun setCats(cats: List<String>): AdminOverview {
+        val body = buildJsonObject { putJsonArray("cats") { cats.forEach { add(it) } } }
+        return json.decodeFromString(call("PUT", "/api/admin/cats", body.toString()))
     }
 
     suspend fun pairCode(userId: Int? = null): PairCode =

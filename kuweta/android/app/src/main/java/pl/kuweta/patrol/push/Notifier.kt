@@ -8,6 +8,8 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.media.AudioAttributes
+import android.net.Uri
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -17,8 +19,9 @@ import pl.kuweta.patrol.data.PushEvent
 import pl.kuweta.patrol.ui.MainActivity
 
 object Notifier {
-    const val CH_REMIND = "reminders"
-    const val CH_PARTNER = "partner"
+    // Dźwięk kanału da się ustawić tylko przy tworzeniu, stąd nowe ID z "meow".
+    const val CH_REMIND = "reminders_meow"
+    const val CH_PARTNER = "partner_meow"
     const val CH_SERVICE = "service"
 
     const val ID_SERVICE = 1
@@ -27,16 +30,26 @@ object Notifier {
     const val ID_INFO = 300
     const val ID_ERROR = 900
 
+    private fun sound(context: Context, raw: Int): Uri =
+        Uri.parse("android.resource://${context.packageName}/$raw")
+
     fun createChannels(context: Context) {
         val nm = context.getSystemService(NotificationManager::class.java)
+        listOf("reminders", "partner").forEach { nm.deleteNotificationChannel(it) }
+        val attrs = AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+            .build()
         nm.createNotificationChannel(
             NotificationChannel(CH_REMIND, "Przypomnienia o kuwecie", NotificationManager.IMPORTANCE_HIGH).apply {
-                description = "Co ileś minut, dopóki kuweta nie będzie ogarnięta"
+                description = "Co ileś minut, dopóki kuweta nie będzie ogarnięta. Dźwięk: miauczenie"
+                setSound(sound(context, R.raw.meow), attrs)
             }
         )
         nm.createNotificationChannel(
             NotificationChannel(CH_PARTNER, "Od drugiej osoby", NotificationManager.IMPORTANCE_HIGH).apply {
-                description = "Prośby o przedłużenie, info o sprzątnięciu, donosy"
+                description = "Prośby o przedłużenie, info o sprzątnięciu, donosy. Dźwięk: krótkie mrrp"
+                setSound(sound(context, R.raw.mrrp), attrs)
             }
         )
         nm.createNotificationChannel(

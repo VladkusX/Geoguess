@@ -11,7 +11,7 @@ from typing import Callable
 from zoneinfo import ZoneInfo
 
 from . import schedule
-from .messages import DEFAULT_MESSAGES
+from .messages import CAT_MESSAGES, DEFAULT_MESSAGES
 
 TZ = ZoneInfo(os.environ.get("KUWETA_TZ", "Europe/Warsaw"))
 MAX_USERS = 2
@@ -96,12 +96,25 @@ def connect(path: str) -> sqlite3.Connection:
     conn.execute("PRAGMA journal_mode=WAL")
     conn.executescript(SCHEMA)
     conn.execute("INSERT OR IGNORE INTO household (id) VALUES (1)")
-    if conn.execute("SELECT COUNT(*) FROM messages").fetchone()[0] == 0:
-        conn.executemany(
-            "INSERT INTO messages (category, level, text, builtin) VALUES (?, ?, ?, 1)",
-            DEFAULT_MESSAGES,
-        )
+    migrate(conn)
     return conn
+
+
+def migrate(conn: sqlite3.Connection) -> None:
+    cols = {r["name"] for r in conn.execute("PRAGMA table_info(household)")}
+    if "cats" not in cols:
+        conn.execute("ALTER TABLE household ADD COLUMN cats TEXT NOT NULL DEFAULT '[]'")
+    if "seed_version" not in cols:
+        conn.execute("ALTER TABLE household ADD COLUMN seed_version INTEGER NOT NULL DEFAULT 0")
+    version = conn.execute("SELECT seed_version FROM household WHERE id = 1").fetchone()[0]
+    if version == 0 and conn.execute("SELECT COUNT(*) FROM messages").fetchone()[0]:
+        version = 1  # baza sprzed wersjonowania
+    insert = "INSERT INTO messages (category, level, text, builtin) VALUES (?, ?, ?, 1)"
+    if version < 1:
+        conn.executemany(insert, DEFAULT_MESSAGES)
+    if version < 2:
+        conn.executemany(insert, CAT_MESSAGES)
+    conn.execute("UPDATE household SET seed_version = 2 WHERE id = 1")
 
 
 # ---------- zdarzenia (push przez SSE) ----------
@@ -237,7 +250,28 @@ def household(conn) -> sqlite3.Row:
     return conn.execute("SELECT * FROM household WHERE id = 1").fetchone()
 
 
-def fmt(text: str, **values) -> str:
+def cats(conn) -> list[str]:
+    return json.loads(household(conn)["cats"] or "[]")
+
+
+def set_cats(conn, names: list[str]) -> list[str]:
+    clean_names = [n.strip()[:20] for n in names if n.strip()][:10]
+    conn.execute("UPDATE household SET cats = ? WHERE id = 1", (json.dumps(clean_names, ensure_ascii=False),))
+    return clean_names
+
+
+def cats_phrase(names: list[str]) -> str:
+    if not names:
+        return "Koty"
+    if len(names) == 1:
+        return names[0]
+    return ", ".join(names[:-1]) + " i " + names[-1]
+
+
+def fmt(text: str, conn=None, **values) -> str:
+    names = cats(conn) if conn is not None else []
+    values.setdefault("cat", random.choice(names) if names else "Kot")
+    values.setdefault("cats", cats_phrase(names))
     try:
         return text.format(**values)
     except (KeyError, IndexError, ValueError):
@@ -314,7 +348,7 @@ def clean(conn, bus: Bus, user: sqlite3.Row) -> dict:
         "UPDATE extensions SET status = 'cancelled', decided_at = ? WHERE status = 'pending'", (t.isoformat(),)
     )
     if partner:
-        body = fmt(pick_message(conn, "cleaned"), name=user["name"], partner=partner["name"], days=h["interval_days"])
+        body = fmt(pick_message(conn, "cleaned"), conn, name=user["name"], partner=partner["name"], days=h["interval_days"])
         bus.notify(partner["id"], "cleaned", "Kuweta ogarnięta ✔", body)
     bus.state_changed()
     return {"next_assignee_id": next_assignee, "next_due": next_due.isoformat(), "on_time": on_time}
@@ -331,7 +365,7 @@ def request_extension(conn, bus: Bus, user: sqlite3.Row) -> dict:
         raise ApiError(400, "Brak drugiej osoby do zatwierdzenia")
     t = now()
     cur = conn.execute("INSERT INTO extensions (requester_id, created_at) VALUES (?, ?)", (user["id"], t.isoformat()))
-    body = fmt(pick_message(conn, "ext_request"), name=user["name"], partner=partner["name"])
+    body = fmt(pick_message(conn, "ext_request"), conn, name=user["name"], partner=partner["name"])
     bus.notify(partner["id"], "ext_request", "Prośba o +1 dzień", body, extension_id=cur.lastrowid)
     bus.state_changed()
     return {"id": cur.lastrowid}
@@ -388,7 +422,7 @@ def tick(conn, bus: Bus, t: datetime | None = None) -> list[str]:
         level = min(reminder_level(overdue, sent_today), h["max_level"])
         category = "extension" if h["extended"] and random.random() < 0.5 else "reminder"
         values = dict(name=assignee["name"], partner=partner["name"] if partner else "", days=overdue)
-        body = fmt(pick_message(conn, category, level), **values)
+        body = fmt(pick_message(conn, category, level), conn, **values)
         title = LEVEL_TITLES[level] + (" (po przedłużeniu)" if h["extended"] else "")
         bus.notify(assignee["id"], "reminder", title, body, ttl_min=20, level=level)
         conn.execute(
@@ -403,7 +437,7 @@ def tick(conn, bus: Bus, t: datetime | None = None) -> list[str]:
         and h["partner_alerted_on"] != today.isoformat()
         and schedule.can_notify(settings_of(partner), t, TZ)
     ):
-        body = fmt(pick_message(conn, "partner"), name=assignee["name"], partner=partner["name"], days=overdue)
+        body = fmt(pick_message(conn, "partner"), conn, name=assignee["name"], partner=partner["name"], days=overdue)
         bus.notify(partner["id"], "partner", "Donos z kuwety", body, ttl_min=120)
         conn.execute("UPDATE household SET partner_alerted_on = ? WHERE id = 1", (today.isoformat(),))
         sent.append(f"partner:{partner['id']}")
@@ -478,6 +512,7 @@ def state(conn, user: sqlite3.Row) -> dict:
         },
         "upcoming": upcoming,
         "max_level": h["max_level"],
+        "cats": cats(conn),
     }
 
 

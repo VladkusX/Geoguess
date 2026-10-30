@@ -111,6 +111,10 @@ class AdminStateIn(BaseModel):
     due_date: str
 
 
+class CatsIn(BaseModel):
+    cats: list[str]
+
+
 class MessageIn(BaseModel):
     category: str
     level: int = 0
@@ -151,7 +155,7 @@ async def decide_extension(ext_id: int, body: DecideIn, user=Depends(current_use
 
 @app.post("/api/test-notify")
 async def test_notify(user=Depends(current_user)):
-    body = core.fmt(core.pick_message(conn, "reminder", 2), name=user["name"], partner="", days=0)
+    body = core.fmt(core.pick_message(conn, "reminder", 2), conn, name=user["name"], partner="", days=0)
     bus.notify(user["id"], "test", "Test powiadomień", body, ttl_min=10)
     return {"ok": True}
 
@@ -198,6 +202,7 @@ async def admin_overview(user=Depends(admin_user)):
         "max_level": h["max_level"],
         "assignee_id": h["assignee_id"],
         "due_date": h["due_date"],
+        "cats": core.cats(conn),
         "users": [
             {**core.user_public(u), "schedule": core.settings_of(u)} for u in core.users(conn)
         ],
@@ -219,6 +224,13 @@ async def admin_settings(body: AdminSettingsIn, user=Depends(admin_user)):
         if not 5 <= minutes <= 240:
             raise core.ApiError(400, "Częstotliwość: od 5 do 240 minut")
         conn.execute("UPDATE users SET notify_interval_min = ? WHERE id = ?", (minutes, uid))
+    bus.state_changed()
+    return await admin_overview(user)
+
+
+@app.put("/api/admin/cats")
+async def admin_cats(body: CatsIn, user=Depends(admin_user)):
+    core.set_cats(conn, body.cats)
     bus.state_changed()
     return await admin_overview(user)
 

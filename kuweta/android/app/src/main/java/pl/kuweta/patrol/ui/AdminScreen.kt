@@ -81,6 +81,8 @@ fun AdminScreen() {
             return@Column
         }
 
+        CatsCard(d.cats, onSave = { list -> act({ it.setCats(list) }, "Koty zapisane") })
+
         BrutalCard {
             SectionTitle("Kuweta co ile dni")
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -169,6 +171,26 @@ fun AdminScreen() {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
+private fun CatsCard(cats: List<String>, onSave: (List<String>) -> Unit) {
+    var name by remember { mutableStateOf("") }
+    BrutalCard {
+        SectionTitle("Koty (${cats.size})")
+        Text("Imiona trafiają do powiadomień, np. „{cat} już patrzy, żeby zeszczać się na panele”.", style = MaterialTheme.typography.bodySmall)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            cats.forEach { cat -> Chip("🐱 $cat  ✕", false, { onSave(cats - cat) }) }
+        }
+        if (cats.size < 10) {
+            BrutalField(name, { name = it }, "Imię kota")
+            BrutalButton("Dodaj kota", {
+                onSave(cats + name.trim())
+                name = ""
+            }, enabled = name.isNotBlank() && name.trim() !in cats, small = true)
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
 private fun MessagesCard(d: AdminOverview, onAdd: (String, Int, String) -> Unit, onDelete: (Int) -> Unit) {
     var category by remember { mutableStateOf("reminder") }
     var level by remember { mutableIntStateOf(2) }
@@ -192,7 +214,7 @@ private fun MessagesCard(d: AdminOverview, onAdd: (String, Int, String) -> Unit,
             }
         }
         BrutalField(text, { text = it }, "Nowy tekst", singleLine = false)
-        Text("Zmienne: {name} – kto ma dyżur, {partner} – druga osoba, {days} – dni spóźnienia", style = MaterialTheme.typography.bodySmall)
+        Text("Zmienne: {cat} – losowy kot, {cats} – wszystkie koty, {name} – kto ma dyżur, {partner} – druga osoba, {days} – dni spóźnienia", style = MaterialTheme.typography.bodySmall)
         BrutalButton("Dodaj tekst", {
             onAdd(category, if (category == "reminder") level else 0, text)
             text = ""

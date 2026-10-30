@@ -30,3 +30,6 @@ def test_admin_flow(tmp_path):
     assert c.put("/api/schedule", headers=hb, json={"cycle": ["X"]}).status_code == 400
     assert c.get("/api/state", headers={"Authorization": "Bearer zly"}).status_code == 401
     assert c.get("/api/ranking", headers=hb).status_code == 200
+    r = c.put("/api/admin/cats", headers=ha, json={"cats": ["Beżi", "Mruczek"]})
+    assert r.json()["cats"] == ["Beżi", "Mruczek"]
+    assert c.get("/api/state", headers=hb).json()["cats"] == ["Beżi", "Mruczek"]

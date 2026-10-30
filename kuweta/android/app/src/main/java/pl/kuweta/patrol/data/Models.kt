@@ -67,6 +67,7 @@ data class AppState(
     val today: Today,
     val upcoming: List<DayCode> = emptyList(),
     @SerialName("max_level") val maxLevel: Int = 4,
+    val cats: List<String> = emptyList(),
 )
 
 @Serializable
@@ -124,6 +125,7 @@ data class AdminOverview(
     @SerialName("max_level") val maxLevel: Int,
     @SerialName("assignee_id") val assigneeId: Int? = null,
     @SerialName("due_date") val dueDate: String? = null,
+    val cats: List<String> = emptyList(),
     val users: List<AdminUser>,
     val messages: List<Message>,
 )

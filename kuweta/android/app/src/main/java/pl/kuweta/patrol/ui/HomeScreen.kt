@@ -110,6 +110,10 @@ fun HomeScreen(onLogout: () -> Unit) {
 
         Text(headline(s).uppercase(), style = MaterialTheme.typography.headlineLarge)
 
+        if (duty != null && s.cats.isNotEmpty() && duty.daysLeft <= 0) {
+            Text(catsLine(s.cats, duty.daysLeft), fontWeight = FontWeight.Bold)
+        }
+
         if (duty != null && duty.extended > 0) {
             Text("Przedłużone ${duty.extended}x. Koty pamiętają.", fontWeight = FontWeight.Bold)
         }
@@ -189,6 +193,15 @@ fun HomeScreen(onLogout: () -> Unit) {
             dismissButton = { TextButton(onClick = { confirmLogout = false }) { Text("Anuluj", color = Ink) } },
             containerColor = Paper,
         )
+    }
+}
+
+private fun catsLine(cats: List<String>, daysLeft: Int): String {
+    val who = if (cats.size == 1) cats[0] else cats.dropLast(1).joinToString(", ") + " i " + cats.last()
+    val plural = cats.size > 1
+    return when {
+        daysLeft < 0 -> "$who ${if (plural) "planują" else "planuje"} zemstę."
+        else -> "$who ${if (plural) "czekają" else "czeka"} na czystą kuwetę."
     }
 }
 
