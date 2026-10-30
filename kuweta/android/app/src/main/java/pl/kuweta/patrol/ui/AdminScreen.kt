@@ -26,7 +26,16 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.net.Uri
+import android.provider.OpenableColumns
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import pl.kuweta.patrol.data.SoundItem
+import pl.kuweta.patrol.data.SoundRef
+import pl.kuweta.patrol.push.SoundPlayer
 import pl.kuweta.patrol.data.AdminOverview
 import pl.kuweta.patrol.data.Api
 import pl.kuweta.patrol.data.ApiException
@@ -82,6 +91,8 @@ fun AdminScreen() {
         }
 
         CatsCard(d.cats, onSave = { list -> act({ it.setCats(list) }, "Koty zapisane") })
+
+        SoundsCard(d, onResult = { data = it }, onMessage = { message = it })
 
         BrutalCard {
             SectionTitle("Kuweta co ile dni")
@@ -166,6 +177,106 @@ fun AdminScreen() {
         MessagesCard(d, onAdd = { cat, lvl, text -> act({ it.addMessage(cat, lvl, text) }, "Dodane") }, onDelete = { id ->
             act({ it.deleteMessage(id) })
         })
+    }
+}
+
+private val SLOT_LABELS = linkedMapOf("reminder" to "Przypomnienia", "partner" to "Od drugiej osoby")
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun SoundsCard(d: AdminOverview, onResult: (AdminOverview) -> Unit, onMessage: (String?) -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var uploading by remember { mutableStateOf(false) }
+
+    fun call(done: String?, block: suspend (Api) -> AdminOverview) {
+        scope.launch {
+            try {
+                onResult(block(Api(Prefs(context))))
+                onMessage(done)
+                Repo.refresh(context)
+            } catch (e: ApiException) {
+                onMessage(e.message)
+            }
+        }
+    }
+
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        uploading = true
+        scope.launch {
+            try {
+                val resolver = context.contentResolver
+                val name = resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
+                    if (c.moveToFirst()) c.getString(0) else null
+                } ?: "dźwięk"
+                val mime = resolver.getType(uri) ?: "audio/mpeg"
+                val bytes = withContext(Dispatchers.IO) { resolver.openInputStream(uri)?.use { it.readBytes() } }
+                    ?: throw ApiException("Nie da się odczytać pliku")
+                if (bytes.size > 2 * 1024 * 1024) throw ApiException("Plik za duży, limit to 2 MB")
+                onResult(Api(Prefs(context)).uploadSound(name, mime, bytes))
+                onMessage("Wgrane: $name. Teraz wybierz, gdzie ma grać.")
+            } catch (e: ApiException) {
+                onMessage(e.message)
+            } catch (e: Exception) {
+                onMessage("Nie udało się wgrać pliku: ${e.message}")
+            } finally {
+                uploading = false
+            }
+        }
+    }
+
+    fun preview(item: SoundItem) {
+        scope.launch {
+            val ref = SoundRef(item.id, item.name, item.ext)
+            val f = SoundPlayer.file(context, ref)
+            if (f.exists() || Api(Prefs(context)).downloadSound(item.id, f)) {
+                SoundPlayer.preview(context, Uri.fromFile(f))
+            } else {
+                onMessage("Nie udało się pobrać dźwięku")
+            }
+        }
+    }
+
+    BrutalCard {
+        SectionTitle("Dźwięki powiadomień")
+        Text("Wgraj krótki plik (mp3, ogg, wav, m4a, do 2 MB), np. nagranie swojego kota. Oba telefony pobiorą go same.", style = MaterialTheme.typography.bodySmall)
+        SLOT_LABELS.forEach { (slot, label) ->
+            val current = d.soundSlots[slot]
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("$label:", fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                Text(current?.name ?: if (slot == "reminder") "miau (domyślne)" else "mrrp (domyślne)")
+                Chip("▶", false, {
+                    val item = current?.let { c -> d.sounds.firstOrNull { it.id == c.id } }
+                    if (item != null) preview(item) else SoundPlayer.preview(context, SoundPlayer.defaultUri(context, slot))
+                })
+            }
+        }
+        d.sounds.forEach { item ->
+            BrutalCard(shadow = 2.dp) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("♪ ${item.name}", fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                    Text("${item.size / 1024} kB", style = MaterialTheme.typography.bodySmall)
+                    Chip("▶", false, { preview(item) })
+                    Chip("✕", false, { call("Usunięte") { it.deleteSound(item.id) } })
+                }
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    SLOT_LABELS.forEach { (slot, label) ->
+                        val on = d.soundSlots[slot]?.id == item.id
+                        Chip(label, on, { call("Ustawione") { it.assignSound(slot, if (on) null else item.id) } })
+                    }
+                }
+            }
+        }
+        BrutalButton(if (uploading) "Wysyłam…" else "Wgraj dźwięk", { picker.launch("audio/*") }, enabled = !uploading, small = true)
+        if (d.soundSlots.values.any { it != null }) {
+            BrutalButton("Przywróć domyślne miau", {
+                call("Przywrócone") { api ->
+                    api.assignSound("reminder", null)
+                    api.assignSound("partner", null)
+                }
+            }, bg = Paper, fg = Ink, small = true)
+        }
     }
 }
 

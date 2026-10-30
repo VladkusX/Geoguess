@@ -4,6 +4,7 @@ import android.content.Context
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
+import pl.kuweta.patrol.push.SoundPlayer
 import pl.kuweta.patrol.widget.KuwetaWidget
 
 /** Ostatni znany stan dyżuru, wspólny dla ekranu, widżetu i powiadomień. */
@@ -27,6 +28,7 @@ object Repo {
             prefs.stateJson = Api.json.encodeToString(s)
             error.value = null
             KuwetaWidget.updateAll(context)
+            SoundPlayer.sync(context, s.sounds)
         } catch (e: ApiException) {
             error.value = e.message
         }

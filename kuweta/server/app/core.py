@@ -68,6 +68,14 @@ CREATE TABLE IF NOT EXISTS events (
     created_at TEXT NOT NULL,
     expires_at TEXT
 );
+CREATE TABLE IF NOT EXISTS sounds (
+    id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL,
+    mime TEXT NOT NULL,
+    ext TEXT NOT NULL,
+    size INTEGER NOT NULL,
+    created_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS pair_codes (
     code TEXT PRIMARY KEY,
     user_id INTEGER,
@@ -104,6 +112,9 @@ def migrate(conn: sqlite3.Connection) -> None:
     cols = {r["name"] for r in conn.execute("PRAGMA table_info(household)")}
     if "cats" not in cols:
         conn.execute("ALTER TABLE household ADD COLUMN cats TEXT NOT NULL DEFAULT '[]'")
+    for col in ("sound_reminder", "sound_partner"):
+        if col not in cols:
+            conn.execute(f"ALTER TABLE household ADD COLUMN {col} INTEGER")
     if "seed_version" not in cols:
         conn.execute("ALTER TABLE household ADD COLUMN seed_version INTEGER NOT NULL DEFAULT 0")
     version = conn.execute("SELECT seed_version FROM household WHERE id = 1").fetchone()[0]
@@ -396,6 +407,85 @@ def decide_extension(conn, bus: Bus, user: sqlite3.Row, ext_id: int, approve: bo
     return {"status": status}
 
 
+# ---------- własne dźwięki ----------
+
+SOUND_SLOTS = ("reminder", "partner")
+SOUND_TYPES = {
+    "audio/mpeg": "mp3", "audio/mp3": "mp3", "audio/ogg": "ogg", "application/ogg": "ogg",
+    "audio/wav": "wav", "audio/x-wav": "wav", "audio/wave": "wav",
+    "audio/mp4": "m4a", "audio/x-m4a": "m4a", "audio/aac": "aac", "audio/opus": "opus",
+}
+MAX_SOUND_BYTES = 2 * 1024 * 1024
+
+
+def sounds_dir(db_path: str) -> str:
+    path = os.path.join(os.path.dirname(os.path.abspath(db_path)), "sounds")
+    os.makedirs(path, exist_ok=True)
+    return path
+
+
+def add_sound(conn, folder: str, name: str, mime: str, data: bytes) -> int:
+    mime = mime.split(";")[0].strip().lower()
+    ext = SOUND_TYPES.get(mime)
+    if not ext:
+        guess = name.rsplit(".", 1)[-1].lower() if "." in name else ""
+        ext = guess if guess in set(SOUND_TYPES.values()) else None
+    if not ext:
+        raise ApiError(415, "Obsługiwane formaty: mp3, ogg, wav, m4a, aac, opus")
+    if not data:
+        raise ApiError(400, "Pusty plik")
+    if len(data) > MAX_SOUND_BYTES:
+        raise ApiError(413, "Plik za duży, limit to 2 MB (krótki dźwięk wystarczy)")
+    name = (name.rsplit(".", 1)[0] if "." in name else name).strip()[:40] or "dźwięk"
+    cur = conn.execute(
+        "INSERT INTO sounds (name, mime, ext, size, created_at) VALUES (?, ?, ?, ?, ?)",
+        (name, mime, ext, len(data), now().isoformat()),
+    )
+    with open(os.path.join(folder, f"{cur.lastrowid}.{ext}"), "wb") as f:
+        f.write(data)
+    return cur.lastrowid
+
+
+def sound_row(conn, sound_id: int) -> sqlite3.Row:
+    row = conn.execute("SELECT * FROM sounds WHERE id = ?", (sound_id,)).fetchone()
+    if not row:
+        raise ApiError(404, "Nie ma takiego dźwięku")
+    return row
+
+
+def delete_sound(conn, folder: str, sound_id: int) -> None:
+    row = sound_row(conn, sound_id)
+    conn.execute("DELETE FROM sounds WHERE id = ?", (sound_id,))
+    for slot in SOUND_SLOTS:
+        conn.execute(f"UPDATE household SET sound_{slot} = NULL WHERE sound_{slot} = ?", (sound_id,))
+    try:
+        os.remove(os.path.join(folder, f"{row['id']}.{row['ext']}"))
+    except FileNotFoundError:
+        pass
+
+
+def assign_sound(conn, slot: str, sound_id: int | None) -> None:
+    if slot not in SOUND_SLOTS:
+        raise ApiError(400, "Nieznany rodzaj powiadomienia")
+    if sound_id is not None:
+        sound_row(conn, sound_id)
+    conn.execute(f"UPDATE household SET sound_{slot} = ? WHERE id = 1", (sound_id,))
+
+
+def sound_info(conn) -> dict:
+    h = household(conn)
+    out = {}
+    for slot in SOUND_SLOTS:
+        sid = h[f"sound_{slot}"]
+        row = conn.execute("SELECT id, name, ext FROM sounds WHERE id = ?", (sid,)).fetchone() if sid else None
+        out[slot] = dict(row) if row else None
+    return out
+
+
+def list_sounds(conn) -> list[dict]:
+    return [dict(r) for r in conn.execute("SELECT id, name, mime, ext, size FROM sounds ORDER BY id")]
+
+
 # ---------- przypomnienia ----------
 
 def tick(conn, bus: Bus, t: datetime | None = None) -> list[str]:
@@ -513,6 +603,7 @@ def state(conn, user: sqlite3.Row) -> dict:
         "upcoming": upcoming,
         "max_level": h["max_level"],
         "cats": cats(conn),
+        "sounds": sound_info(conn),
     }
 
 

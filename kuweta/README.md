@@ -30,7 +30,7 @@ Telefon A ─┐                    ┌─ Telefon B
 - **Streak**: liczba sprzątnięć z rzędu na czas i bez przedłużania. Na ekranie głównym jest też kolejny gracz i za ile dni.
 - **Koty**: admin dodaje imiona kotów, a powiadomienia ich używają („Beżi już patrzy, żeby zeszczać się na panele”). W tekstach: `{cat}` to losowy kot, `{cats}` to wszystkie koty.
 - **Kalendarz** w zakładce Grafik: cykl ustawiasz raz i powtarza się sam. Urlop, zamianę czy nadgodziny poprawiasz, stukając dzień. Zmiana zapisuje się od razu, a każdy edytuje swój grafik.
-- **Miauczenie**: przypomnienia miauczą, wiadomości od drugiej osoby robią krótkie „mrrp”. Dźwięk można zmienić w ustawieniach kanału powiadomień.
+- **Dźwięki**: domyślnie przypomnienia miauczą, a wiadomości od drugiej osoby robią krótkie „mrrp”. Admin może wgrać własne pliki (mp3/ogg/wav/m4a, do 2 MB) w zakładce Admin → Dźwięki powiadomień i przypisać je do przypomnień albo wiadomości. Oba telefony pobiorą je same. Dźwięk gra aplikacja, więc w trybie cichym i w trybie Nie przeszkadzać jest cisza (zostają wibracje).
 - **Ranking miesiąca**, **widżet** na ekran główny, **własne teksty** dopisywane przez admina.
 
 ## 1. Serwer na homelabie

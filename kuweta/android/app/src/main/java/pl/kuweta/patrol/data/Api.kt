@@ -118,6 +118,56 @@ class Api(private val prefs: Prefs) {
         return json.decodeFromString(call("PUT", "/api/admin/cats", body.toString()))
     }
 
+    suspend fun uploadSound(name: String, mime: String, bytes: ByteArray): AdminOverview = withContext(Dispatchers.IO) {
+        val url = prefs.serverUrl.trimEnd('/') + "/api/admin/sounds?name=" + java.net.URLEncoder.encode(name, "UTF-8")
+        val request = Request.Builder()
+            .url(url)
+            .header("Authorization", "Bearer ${prefs.token}")
+            .post(bytes.toRequestBody(mime.toMediaType()))
+            .build()
+        try {
+            client.newCall(request).execute().use { response ->
+                val text = response.body?.string().orEmpty()
+                if (!response.isSuccessful) {
+                    val message = runCatching {
+                        json.parseToJsonElement(text).jsonObject["error"]?.jsonPrimitive?.content
+                    }.getOrNull() ?: "Błąd serwera (${response.code})"
+                    throw ApiException(message, response.code)
+                }
+                json.decodeFromString<AdminOverview>(text)
+            }
+        } catch (e: IOException) {
+            throw ApiException("Brak połączenia z serwerem.")
+        }
+    }
+
+    /** Pobiera plik dźwięku do [target]. Zwraca false, gdy się nie udało. */
+    suspend fun downloadSound(id: Int, target: java.io.File): Boolean = withContext(Dispatchers.IO) {
+        val request = Request.Builder()
+            .url(prefs.serverUrl.trimEnd('/') + "/api/sounds/$id")
+            .header("Authorization", "Bearer ${prefs.token}")
+            .build()
+        try {
+            client.newCall(request).execute().use { response ->
+                val body = response.body
+                if (!response.isSuccessful || body == null) return@withContext false
+                val tmp = java.io.File(target.path + ".part")
+                tmp.outputStream().use { out -> body.byteStream().copyTo(out) }
+                tmp.renameTo(target)
+            }
+        } catch (e: IOException) {
+            false
+        }
+    }
+
+    suspend fun deleteSound(id: Int): AdminOverview =
+        json.decodeFromString(call("DELETE", "/api/admin/sounds/$id"))
+
+    suspend fun assignSound(slot: String, soundId: Int?): AdminOverview {
+        val body = buildJsonObject { put("sound_id", soundId) }
+        return json.decodeFromString(call("PUT", "/api/admin/sound-slots/$slot", body.toString()))
+    }
+
     suspend fun pairCode(userId: Int? = null): PairCode =
         json.decodeFromString(call("POST", "/api/admin/pair-code" + (userId?.let { "?user_id=$it" } ?: "")))
 

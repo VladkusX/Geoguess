@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 
 from fastapi import Depends, FastAPI, Header, Request
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 from . import core, schedule
@@ -21,6 +21,7 @@ DB_PATH = os.environ.get("KUWETA_DB", "/data/kuweta.db")
 ADMIN_CODE = os.environ.get("KUWETA_ADMIN_CODE", "")
 
 conn = core.connect(DB_PATH)
+SOUNDS_DIR = core.sounds_dir(DB_PATH)
 bus = core.Bus(conn)
 wakeups: dict[int, set[asyncio.Event]] = {}
 
@@ -115,6 +116,10 @@ class CatsIn(BaseModel):
     cats: list[str]
 
 
+class SoundSlotIn(BaseModel):
+    sound_id: int | None = None
+
+
 class MessageIn(BaseModel):
     category: str
     level: int = 0
@@ -203,6 +208,8 @@ async def admin_overview(user=Depends(admin_user)):
         "assignee_id": h["assignee_id"],
         "due_date": h["due_date"],
         "cats": core.cats(conn),
+        "sounds": core.list_sounds(conn),
+        "sound_slots": core.sound_info(conn),
         "users": [
             {**core.user_public(u), "schedule": core.settings_of(u)} for u in core.users(conn)
         ],
@@ -231,6 +238,33 @@ async def admin_settings(body: AdminSettingsIn, user=Depends(admin_user)):
 @app.put("/api/admin/cats")
 async def admin_cats(body: CatsIn, user=Depends(admin_user)):
     core.set_cats(conn, body.cats)
+    bus.state_changed()
+    return await admin_overview(user)
+
+
+@app.get("/api/sounds/{sound_id}")
+async def get_sound(sound_id: int, user=Depends(current_user)):
+    row = core.sound_row(conn, sound_id)
+    return FileResponse(os.path.join(SOUNDS_DIR, f"{row['id']}.{row['ext']}"), media_type=row["mime"])
+
+
+@app.post("/api/admin/sounds")
+async def admin_upload_sound(request: Request, name: str = "dźwięk", user=Depends(admin_user)):
+    data = await request.body()
+    core.add_sound(conn, SOUNDS_DIR, name, request.headers.get("content-type", ""), data)
+    return await admin_overview(user)
+
+
+@app.delete("/api/admin/sounds/{sound_id}")
+async def admin_delete_sound(sound_id: int, user=Depends(admin_user)):
+    core.delete_sound(conn, SOUNDS_DIR, sound_id)
+    bus.state_changed()
+    return await admin_overview(user)
+
+
+@app.put("/api/admin/sound-slots/{slot}")
+async def admin_sound_slot(slot: str, body: SoundSlotIn, user=Depends(admin_user)):
+    core.assign_sound(conn, slot, body.sound_id)
     bus.state_changed()
     return await admin_overview(user)
 

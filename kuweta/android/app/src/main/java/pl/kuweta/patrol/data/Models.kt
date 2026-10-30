@@ -68,7 +68,14 @@ data class AppState(
     val upcoming: List<DayCode> = emptyList(),
     @SerialName("max_level") val maxLevel: Int = 4,
     val cats: List<String> = emptyList(),
+    val sounds: Map<String, SoundRef?> = emptyMap(),
 )
+
+@Serializable
+data class SoundRef(val id: Int, val name: String, val ext: String)
+
+@Serializable
+data class SoundItem(val id: Int, val name: String, val mime: String, val ext: String, val size: Int)
 
 @Serializable
 data class ScheduleSettings(
@@ -126,6 +133,8 @@ data class AdminOverview(
     @SerialName("assignee_id") val assigneeId: Int? = null,
     @SerialName("due_date") val dueDate: String? = null,
     val cats: List<String> = emptyList(),
+    val sounds: List<SoundItem> = emptyList(),
+    @SerialName("sound_slots") val soundSlots: Map<String, SoundRef?> = emptyMap(),
     val users: List<AdminUser>,
     val messages: List<Message>,
 )

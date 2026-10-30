@@ -33,3 +33,15 @@ def test_admin_flow(tmp_path):
     r = c.put("/api/admin/cats", headers=ha, json={"cats": ["Beżi", "Mruczek"]})
     assert r.json()["cats"] == ["Beżi", "Mruczek"]
     assert c.get("/api/state", headers=hb).json()["cats"] == ["Beżi", "Mruczek"]
+
+    r = c.post("/api/admin/sounds?name=beżi.mp3", headers={**ha, "content-type": "audio/mpeg"}, content=b"ID3fake")
+    assert r.status_code == 200
+    sid = r.json()["sounds"][0]["id"]
+    assert c.post("/api/admin/sounds?name=x.exe", headers={**ha, "content-type": "application/x-msdownload"}, content=b"x").status_code == 415
+    assert c.post("/api/admin/sounds", headers={**hb, "content-type": "audio/mpeg"}, content=b"x").status_code == 403
+    c.put("/api/admin/sound-slots/reminder", headers=ha, json={"sound_id": sid})
+    st = c.get("/api/state", headers=hb).json()
+    assert st["sounds"]["reminder"]["name"] == "beżi" and st["sounds"]["partner"] is None
+    assert c.get(f"/api/sounds/{sid}", headers=hb).content == b"ID3fake"
+    c.delete(f"/api/admin/sounds/{sid}", headers=ha)
+    assert c.get("/api/state", headers=hb).json()["sounds"]["reminder"] is None
