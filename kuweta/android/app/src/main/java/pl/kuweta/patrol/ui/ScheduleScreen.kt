@@ -1,6 +1,7 @@
 package pl.kuweta.patrol.ui
 
 import android.app.DatePickerDialog
+import android.app.TimePickerDialog
 import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -194,8 +195,8 @@ fun ScheduleScreen() {
                 val hours = cur.shifts[code] ?: DEFAULT_SHIFTS.getValue(code)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(SHIFT_NAMES.getValue(code), modifier = Modifier.width(100.dp), fontWeight = FontWeight.Bold)
-                    BrutalField(hours[0], { v -> update { copy(shifts = shifts + (code to listOf(v, hours[1]))) } }, "od", Modifier.weight(1f))
-                    BrutalField(hours[1], { v -> update { copy(shifts = shifts + (code to listOf(hours[0], v))) } }, "do", Modifier.weight(1f))
+                    TimeField(hours[0], { v -> update { copy(shifts = shifts + (code to listOf(v, hours[1]))) } }, "od", Modifier.weight(1f))
+                    TimeField(hours[1], { v -> update { copy(shifts = shifts + (code to listOf(hours[0], v))) } }, "do", Modifier.weight(1f))
                 }
             }
         }
@@ -206,8 +207,8 @@ fun ScheduleScreen() {
             NumberRow("Męczenie po robocie (min)", cur.graceMin) { update { copy(graceMin = it) } }
             NumberRow("Sen po nocce (godz.)", cur.sleepAfterNightH) { update { copy(sleepAfterNightH = it) } }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                BrutalField(cur.quietStart, { v -> update { copy(quietStart = v) } }, "Cisza nocna od", Modifier.weight(1f))
-                BrutalField(cur.quietEnd, { v -> update { copy(quietEnd = v) } }, "do", Modifier.weight(1f))
+                TimeField(cur.quietStart, { v -> update { copy(quietStart = v) } }, "Cisza nocna od", Modifier.weight(1f))
+                TimeField(cur.quietEnd, { v -> update { copy(quietEnd = v) } }, "do", Modifier.weight(1f))
             }
             Text("Po rannej zmianie nie ma snu. Po popołudniówce i nocce przez „męczenie po robocie” powiadomienia jeszcze lecą, potem cisza.", style = MaterialTheme.typography.bodySmall)
         }
@@ -313,6 +314,32 @@ private fun MonthCalendar(s: ScheduleSettings, onDayChange: (LocalDate, String?)
                 }
             },
             confirmButton = { TextButton(onClick = { editing = null }) { Text("Zamknij", color = Ink) } },
+        )
+    }
+}
+
+/** Godzina wybierana z zegara, bez klawiatury. */
+@Composable
+private fun TimeField(value: String, onChange: (String) -> Unit, label: String, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    Column(modifier) {
+        Text(label, style = MaterialTheme.typography.bodySmall)
+        Text(
+            value,
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center,
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Paper)
+                .border(2.dp, Ink)
+                .clickable {
+                    val parts = value.split(":")
+                    val h = parts.getOrNull(0)?.toIntOrNull() ?: 8
+                    val m = parts.getOrNull(1)?.toIntOrNull() ?: 0
+                    TimePickerDialog(context, { _, hh, mm -> onChange("%02d:%02d".format(hh, mm)) }, h, m, true).show()
+                }
+                .padding(vertical = 12.dp),
         )
     }
 }
