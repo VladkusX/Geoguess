@@ -90,4 +90,18 @@ cd kuweta/android && ./gradlew assembleRelease     # potrzebny Android SDK
 cd kuweta/server && pip install -r requirements.txt pytest httpx && python -m pytest tests
 ```
 
-Klucz podpisu (`app/kuweta.keystore`) jest w repo celowo, żeby każda wersja z CI instalowała się jako aktualizacja. To prywatna apka domowa, nie Sklep Play.
+## Klucz podpisu APK
+
+Klucz nie leży w repo. GitHub Actions bierze go z sekretów repozytorium (Settings → Secrets and variables → Actions):
+
+- `KUWETA_KEYSTORE_B64`: plik keystore zakodowany w base64,
+- `KUWETA_KEYSTORE_PASSWORD`: hasło do keystore i klucza (alias `kuweta`).
+
+Nowy klucz:
+
+```bash
+keytool -genkeypair -keystore kuweta.keystore -alias kuweta -keyalg RSA -keysize 2048 -validity 20000 -dname "CN=Kuweta Patrol"
+base64 -w0 kuweta.keystore    # wynik wklej jako KUWETA_KEYSTORE_B64
+```
+
+Trzymaj kopię pliku i hasła poza GitHubem. Bez tego samego klucza nowe wersje nie zainstalują się jako aktualizacja i trzeba będzie odinstalować aplikację.

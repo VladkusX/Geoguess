@@ -17,23 +17,25 @@ android {
         versionName = "1.0." + (System.getenv("GITHUB_RUN_NUMBER") ?: "0")
     }
 
-    // Stały klucz, żeby kolejne wersje z CI instalowały się jako aktualizacja.
-    signingConfigs {
-        create("kuweta") {
-            storeFile = file("kuweta.keystore")
-            storePassword = "kuweta-patrol"
-            keyAlias = "kuweta"
-            keyPassword = "kuweta-patrol"
+    // Klucz podpisu NIE leży w repo. CI dostaje go z sekretów GitHuba,
+    // lokalnie można podać ścieżkę w zmiennej KUWETA_KEYSTORE.
+    val keystorePath = System.getenv("KUWETA_KEYSTORE")
+    val releaseSigning = if (keystorePath != null && file(keystorePath).exists()) {
+        signingConfigs.create("kuweta") {
+            storeFile = file(keystorePath)
+            storePassword = System.getenv("KUWETA_KEYSTORE_PASSWORD")
+            keyAlias = System.getenv("KUWETA_KEY_ALIAS") ?: "kuweta"
+            keyPassword = System.getenv("KUWETA_KEYSTORE_PASSWORD")
         }
+    } else {
+        logger.warn("Brak KUWETA_KEYSTORE: APK zostanie podpisane kluczem debug")
+        signingConfigs.getByName("debug")
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("kuweta")
-        }
-        debug {
-            signingConfig = signingConfigs.getByName("kuweta")
+            signingConfig = releaseSigning
         }
     }
 

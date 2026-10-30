@@ -58,7 +58,19 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: gradle/actions/setup-gradle@v4
+      - name: Klucz podpisu z sekretów
+        env:
+          KEYSTORE_B64: ${{ secrets.KUWETA_KEYSTORE_B64 }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ]; then
+            echo "::error::Brak sekretu KUWETA_KEYSTORE_B64. Dodaj go w Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+          echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/kuweta.keystore"
+          echo "KUWETA_KEYSTORE=$RUNNER_TEMP/kuweta.keystore" >> "$GITHUB_ENV"
       - name: Build APK
+        env:
+          KUWETA_KEYSTORE_PASSWORD: ${{ secrets.KUWETA_KEYSTORE_PASSWORD }}
         run: |
           chmod +x gradlew
           ./gradlew --no-daemon assembleRelease
