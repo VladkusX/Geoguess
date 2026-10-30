@@ -47,8 +47,9 @@ object Notifier {
         )
         nm.createNotificationChannel(
             NotificationChannel(CH_SERVICE, "Połączenie z serwerem", NotificationManager.IMPORTANCE_MIN).apply {
-                description = "Stałe powiadomienie, dzięki któremu przypomnienia dochodzą na czas"
+                description = "Stałe powiadomienie, dzięki któremu przypomnienia dochodzą na czas. Można je wyłączyć, połączenie zostaje."
                 setShowBadge(false)
+                lockscreenVisibility = Notification.VISIBILITY_SECRET
             }
         )
     }
@@ -72,7 +73,9 @@ object Notifier {
         NotificationCompat.Builder(context, CH_SERVICE)
             .setSmallIcon(R.drawable.ic_stat_cat)
             .setContentTitle(if (connected) "Kuweta Patrol czuwa" else "Łączenie z serwerem…")
-            .setContentText("Możesz ukryć to powiadomienie w ustawieniach kanału")
+            .setContentText("Przytrzymaj, żeby wyłączyć ten kanał. Przypomnienia dalej będą działać.")
+            .setVisibility(NotificationCompat.VISIBILITY_SECRET)
+            .setShowWhen(false)
             .setContentIntent(openApp(context))
             .setOngoing(true)
             .setSilent(true)
