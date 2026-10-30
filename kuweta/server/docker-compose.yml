@@ -1,10 +1,11 @@
 services:
   kuweta:
-    build: .
+    # Gotowy obraz z GitHub Actions. Zamiast tego możesz zbudować lokalnie: zamień "image" na "build: ."
+    image: ghcr.io/vladkusx/kuweta-server:latest
     container_name: kuweta
     restart: unless-stopped
     environment:
-      # Kod, którym admin rejestruje swój telefon. Zmień na coś swojego!
+      # Kod, którym admin paruje swój telefon. Zmień na coś swojego!
       KUWETA_ADMIN_CODE: ${KUWETA_ADMIN_CODE:?ustaw KUWETA_ADMIN_CODE w pliku .env}
       KUWETA_TZ: Europe/Warsaw
     volumes:
