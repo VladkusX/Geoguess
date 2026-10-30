@@ -19,7 +19,8 @@ import pl.kuweta.patrol.ui.MainActivity
 object Notifier {
     const val CH_REMIND = "reminders_v3"
     const val CH_PARTNER = "partner_v3"
-    const val CH_SERVICE = "service"
+    // Nowe ID, bo ważność kanału ustawia się tylko przy tworzeniu.
+    const val CH_SERVICE = "service_hidden"
 
     const val ID_SERVICE = 1
     const val ID_REMINDER = 100
@@ -29,7 +30,7 @@ object Notifier {
 
     fun createChannels(context: Context) {
         val nm = context.getSystemService(NotificationManager::class.java)
-        listOf("reminders", "partner", "reminders_meow", "partner_meow").forEach { nm.deleteNotificationChannel(it) }
+        listOf("reminders", "partner", "reminders_meow", "partner_meow", "service").forEach { nm.deleteNotificationChannel(it) }
         // Kanały są ciche, dźwięk (miau albo wgrany przez admina) gra SoundPlayer.
         nm.createNotificationChannel(
             NotificationChannel(CH_REMIND, "Przypomnienia o kuwecie", NotificationManager.IMPORTANCE_HIGH).apply {
@@ -46,8 +47,14 @@ object Notifier {
             }
         )
         nm.createNotificationChannel(
-            NotificationChannel(CH_SERVICE, "Połączenie z serwerem", NotificationManager.IMPORTANCE_MIN).apply {
-                description = "Stałe powiadomienie, dzięki któremu przypomnienia dochodzą na czas. Można je wyłączyć, połączenie zostaje."
+            // Od Androida 13 usługa działa też z wyłączonym kanałem, więc domyślnie go nie widać.
+            // Starsze systemy pokazałyby wtedy własny komunikat, dlatego tam zostaje MIN.
+            NotificationChannel(
+                CH_SERVICE,
+                "Połączenie z serwerem",
+                if (Build.VERSION.SDK_INT >= 33) NotificationManager.IMPORTANCE_NONE else NotificationManager.IMPORTANCE_MIN,
+            ).apply {
+                description = "Informacja, że aplikacja czeka na przypomnienia. Domyślnie wyłączona, połączenie działa i bez niej."
                 setShowBadge(false)
                 lockscreenVisibility = Notification.VISIBILITY_SECRET
             }
