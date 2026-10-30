@@ -75,6 +75,9 @@ class Api(private val prefs: Prefs) {
 
     suspend fun state(): AppState = json.decodeFromString(call("GET", "/api/state"))
 
+    suspend fun missedEvents(after: Long): MissedEvents =
+        json.decodeFromString(call("GET", "/api/events/missed?after=$after"))
+
     suspend fun clean() { call("POST", "/api/clean") }
 
     suspend fun requestExtension() { call("POST", "/api/extensions") }

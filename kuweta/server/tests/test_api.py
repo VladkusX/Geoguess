@@ -45,3 +45,22 @@ def test_admin_flow(tmp_path):
     assert c.get(f"/api/sounds/{sid}", headers=hb).content == b"ID3fake"
     c.delete(f"/api/admin/sounds/{sid}", headers=ha)
     assert c.get("/api/state", headers=hb).json()["sounds"]["reminder"] is None
+
+
+def test_missed_events_catch_up(tmp_path):
+    os.environ["KUWETA_DB"] = str(tmp_path / "api.db")
+    os.environ["KUWETA_ADMIN_CODE"] = "tajne"
+    main = importlib.reload(importlib.import_module("app.main"))
+    c = TestClient(main.app)
+    ta = c.post("/api/register", json={"name": "Vlad", "code": "tajne"}).json()["token"]
+    ha = {"Authorization": f"Bearer {ta}"}
+    code = c.post("/api/admin/pair-code", headers=ha).json()["code"]
+    tb = c.post("/api/register", json={"name": "Ania", "code": code}).json()["token"]
+    hb = {"Authorization": f"Bearer {tb}"}
+
+    start = c.get("/api/events/missed?after=0", headers=ha).json()["last_id"]
+    assert start > 0
+    assert c.post("/api/clean", headers=hb).status_code == 200  # Ania sprząta, Vlad ma dostać info
+    r = c.get(f"/api/events/missed?after={start}", headers=ha).json()
+    kinds = [e["payload"].get("kind") for e in r["events"]]
+    assert "cleaned" in kinds and r["last_id"] > start

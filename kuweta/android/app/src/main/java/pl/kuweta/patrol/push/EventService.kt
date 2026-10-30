@@ -167,9 +167,13 @@ class EventService : Service() {
                 if (prefs.lastEventId == 0L && lastId != null) prefs.lastEventId = lastId
                 return
             }
-            id?.toLongOrNull()?.let { prefs.lastEventId = it }
-            val event = runCatching { Api.json.decodeFromString<PushEvent>(data) }.getOrNull() ?: return
-            if (event.type == "notify") Notifier.show(this@EventService, event)
+            val event = runCatching { Api.json.decodeFromString<PushEvent>(data) }.getOrNull()
+            val eventId = id?.toLongOrNull()
+            if (eventId != null) {
+                if (!EventSink.accept(this@EventService, eventId, event)) return
+            } else if (event?.type == "notify") {
+                Notifier.show(this@EventService, event)
+            }
             scope.launch { Repo.refresh(this@EventService) }
         }
 

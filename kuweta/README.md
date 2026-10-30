@@ -25,7 +25,7 @@ Telefon A ─┐                    ┌─ Telefon B
   - po popołudniówce i nocce jeszcze **godzina męczenia**, potem sen (po nocce 7 h, po popołudniówce cisza nocna 23–8),
   - po rannej zmianie nie ma snu.
   - Wszystkie wartości da się zmienić w zakładce Grafik.
-- **Eskalacja**: pierwsze przypomnienie dnia ma poziom 1, drugie poziom 2, trzecie poziom 3, a od czwartego leci już najostrzej (poziom 4). Dzień po terminie zaczyna się od poziomu 3, a druga osoba dostaje donos. Admin może ograniczyć maksymalny poziom.
+- **Eskalacja**: pierwsze przypomnienie dnia ma poziom 1, drugie poziom 2, trzecie poziom 3, a od czwartego leci już najostrzej (poziom 4). Jeśli termin minie, a nikt nie kliknie „Ogarnięte” ani nie poprosi o +1 dzień, dyżur przedłuża się automatycznie i przypomnienia lecą od razu na poziomie 4, a druga osoba dostaje donos. Gdy prośba o przedłużenie czeka na odpowiedź, dzień po terminie zaczyna się od poziomu 3. Admin może ograniczyć maksymalny poziom.
 - **Przedłużenie**: „Nie dam rady → +1 dzień” wysyła prośbę. Druga osoba klika Zgoda/Odmowa (także prosto z powiadomienia). Do czasu zgody przypomnienia lecą dalej. Po zgodzie termin przesuwa się o dzień, a następnego dnia teksty wypominają przedłużenie.
 - **Streak**: liczba sprzątnięć z rzędu na czas i bez przedłużania. Na ekranie głównym jest też kolejny gracz i za ile dni.
 - **Koty**: admin dodaje imiona kotów, a powiadomienia ich używają („Beżi już patrzy, żeby zeszczać się na panele”). W tekstach: `{cat}` to losowy kot, `{cats}` to wszystkie koty.

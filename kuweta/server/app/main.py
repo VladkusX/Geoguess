@@ -315,6 +315,16 @@ async def admin_delete_message(msg_id: int, user=Depends(admin_user)):
 
 # ---------- push (Server-Sent Events) ----------
 
+@app.get("/api/events/missed")
+async def missed_events(after: int, user=Depends(current_user)):
+    """Zapasowa droga dla watchdoga: zdarzenia, które mogły przepaść, gdy SSE po cichu padło."""
+    if after <= 0:
+        return {"events": [], "last_id": bus.last_id(user["id"])}
+    rows = bus.pending(user["id"], after)
+    return {"events": [{"id": r["id"], "payload": json.loads(r["payload"])} for r in rows],
+            "last_id": rows[-1]["id"] if rows else after}
+
+
 @app.get("/api/events")
 async def events(
     request: Request,

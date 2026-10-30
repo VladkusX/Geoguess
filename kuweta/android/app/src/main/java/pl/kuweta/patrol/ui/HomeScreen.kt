@@ -116,6 +116,13 @@ fun HomeScreen(onLogout: () -> Unit) {
             Text(catsLine(s.cats, duty.daysLeft), fontWeight = FontWeight.Bold)
         }
 
+        if (duty != null && duty.autoExtended > 0) {
+            Text(
+                "Przedłużone automatycznie (${duty.autoExtended} ${if (duty.autoExtended == 1) "dzień" else "dni"}). Bez prośby, więc obelgi od razu na maksa.",
+                fontWeight = FontWeight.Bold,
+            )
+        }
+
         if (duty != null && duty.extended > 0) {
             Text("Przedłużone ${duty.extended}x. Koty pamiętają.", fontWeight = FontWeight.Bold)
         }

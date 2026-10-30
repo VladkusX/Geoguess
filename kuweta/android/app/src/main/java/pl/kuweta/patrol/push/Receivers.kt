@@ -82,6 +82,7 @@ class Watchdog(context: Context, params: WorkerParameters) : CoroutineWorker(con
     override suspend fun doWork(): Result {
         if (Prefs(applicationContext).token == null) return Result.success()
         EventService.start(applicationContext)
+        EventSink.catchUp(applicationContext)
         Repo.refresh(applicationContext)
         return Result.success()
     }

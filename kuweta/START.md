@@ -25,7 +25,7 @@ Aplikacja na Androida dla dwóch osób, która wulgarnie przypomina o sprzątani
 - Ten sam klucz oznacza zwykłą aktualizację: instalacja na starą wersję, bez odinstalowania i bez parowania.
 - GitHub sortuje release'y tekstowo (`kuweta-9` nad `kuweta-16`). Użytkownikowi zawsze podawaj bezpośredni link do najwyższego numeru.
 - Po pushu sprawdź wynik runu (narzędzia `mcp__github__actions_*`, logi przez `get_job_logs`). Dopiero potem dawaj link.
-- Lokalne testy serwera: `cd kuweta/server && pip install -r requirements.txt pytest httpx && python -m pytest -q tests` (ostatnio 19/19).
+- Lokalne testy serwera: `cd kuweta/server && pip install -r requirements.txt pytest httpx && python -m pytest -q tests` (ostatnio 23/23).
 
 ## Serwer na homelabie (maszyna `100tb`)
 
@@ -38,7 +38,8 @@ Aplikacja na Androida dla dwóch osób, która wulgarnie przypomina o sprzątani
 
 ## Jak działa aplikacja (najważniejsze decyzje)
 
-- **Push bez Firebase.** Usługa pierwszoplanowa (`specialUse`) trzyma SSE na `/api/events?after=<id>`, a serwer wysyła ping co 25 s. Watchdog w WorkManagerze co 15 min.
+- **Push bez Firebase.** Zapas: watchdog dopytuje `/api/events/missed` o zaległe zdarzenia (`EventSink`, bez duplikatów po numerze). Tabela `events` ma AUTOINCREMENT, żeby numery się nie powtarzały.
+- **SSE:** Usługa pierwszoplanowa (`specialUse`) trzyma SSE na `/api/events?after=<id>`, a serwer wysyła ping co 25 s. Watchdog w WorkManagerze co 15 min.
   - Kanał usługi `service_hidden` ma od Androida 13 `IMPORTANCE_NONE`, czyli brak widocznego powiadomienia „czuwa”. Użytkownik tak chciał.
 - **Dźwięki gra aplikacja (`SoundPlayer`), a nie kanał,** bo dźwięku kanału nie da się zmienić. Admin wgrywa pliki (do 2 MB) i przypisuje je do „przypomnień” i „od drugiej osoby”. Domyślnie `raw/meow.ogg` i `raw/mrrp.ogg` (syntetyczne).
 - **Dyżur:** domyślnie co 2 dni, na zmianę. Kliknięcie „Ogarnięte” przekazuje dyżur drugiej osobie i wysyła jej powiadomienie.
@@ -47,7 +48,7 @@ Aplikacja na Androida dla dwóch osób, która wulgarnie przypomina o sprzątani
   - nie w pracy ani 30 min przed zmianą (dojazd),
   - po popołudniówce i nocce jeszcze 60 min „męczenia”, potem sen (po nocce 7 h, poza tym cisza nocna 23–8),
   - po rannej zmianie nie ma snu.
-- **Eskalacja:** poziom = które przypomnienie dnia (1., 2., 3., od 4. poziom 4). W dniu po terminie start od 3, a druga osoba dostaje donos. Teksty z `{ile_dni}` idą tylko przy faktycznym spóźnieniu.
+- **Eskalacja:** poziom = które przypomnienie dnia (1., 2., 3., od 4. poziom 4). Gdy termin minie bez „Ogarnięte” i bez prośby o +1 dzień, dyżur przedłuża się automatycznie, a przypomnienia lecą od razu z poziomu 4 (druga osoba dostaje donos). Jeśli prośba czeka na odpowiedź, start od 3. Teksty z `{ile_dni}` idą tylko przy faktycznym spóźnieniu.
 - **Teksty:** `app/messages.py`, 147 sztuk, losowane od najdawniej użytych (bez powtórek).
   - Podbicie `SEED_VERSION` kasuje wszystkie wbudowane (`builtin = 1`) i wgrywa nowe. Teksty admina (`builtin = 0`) zostają.
   - Zmienne: `{cat}`, `{cats}`, `{name}`, `{partner}`, `{ile_dni}`, `{days}`. Imiona tylko w mianowniku.

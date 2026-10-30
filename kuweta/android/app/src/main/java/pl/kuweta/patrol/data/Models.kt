@@ -24,6 +24,7 @@ data class Duty(
     @SerialName("next_in_days") val nextInDays: Int,
     @SerialName("last_cleaned_at") val lastCleanedAt: String? = null,
     @SerialName("reminders_today") val remindersToday: Int = 0,
+    @SerialName("auto_extended") val autoExtended: Int = 0,
 )
 
 @Serializable
@@ -153,6 +154,15 @@ data class PushEvent(
     val body: String? = null,
     @SerialName("extension_id") val extensionId: Int? = null,
     val level: Int? = null,
+)
+
+@Serializable
+data class MissedEvent(val id: Long, val payload: PushEvent)
+
+@Serializable
+data class MissedEvents(
+    val events: List<MissedEvent> = emptyList(),
+    @SerialName("last_id") val lastId: Long = 0,
 )
 
 @Serializable

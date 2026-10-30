@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import random
 import secrets
@@ -13,6 +14,7 @@ from zoneinfo import ZoneInfo
 from . import schedule
 from .messages import DEFAULT_MESSAGES, SEED_VERSION
 
+log = logging.getLogger("kuweta")
 TZ = ZoneInfo(os.environ.get("KUWETA_TZ", "Europe/Warsaw"))
 MAX_USERS = 2
 
@@ -62,7 +64,7 @@ CREATE TABLE IF NOT EXISTS messages (
     builtin INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS events (
-    id INTEGER PRIMARY KEY,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
     payload TEXT NOT NULL,
     created_at TEXT NOT NULL,
@@ -119,6 +121,19 @@ def migrate(conn: sqlite3.Connection) -> None:
             conn.execute(f"ALTER TABLE household ADD COLUMN {col} INTEGER")
     if "seed_version" not in cols:
         conn.execute("ALTER TABLE household ADD COLUMN seed_version INTEGER NOT NULL DEFAULT 0")
+    events_sql = conn.execute("SELECT sql FROM sqlite_master WHERE name = 'events'").fetchone()[0]
+    if "AUTOINCREMENT" not in events_sql.upper():
+        # Bez AUTOINCREMENT SQLite może po sprzątaniu starych zdarzeń wydać ponownie
+        # te same numery. Telefon ma już wyższy numer, więc takie zdarzenia by przepadły.
+        conn.executescript(
+            "BEGIN;"
+            "ALTER TABLE events RENAME TO events_old;"
+            "CREATE TABLE events (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, "
+            "payload TEXT NOT NULL, created_at TEXT NOT NULL, expires_at TEXT);"
+            "INSERT INTO events SELECT id, user_id, payload, created_at, expires_at FROM events_old;"
+            "DROP TABLE events_old;"
+            "COMMIT;"
+        )
     version = conn.execute("SELECT seed_version FROM household WHERE id = 1").fetchone()[0]
     if version < SEED_VERSION:
         # Nowa pula wbudowanych tekstów. Teksty dopisane przez admina (builtin = 0) zostają.
@@ -150,6 +165,7 @@ class Bus:
 
     def notify(self, user_id: int, kind: str, title: str, body: str, ttl_min: int | None = None, **extra) -> None:
         self.publish(user_id, {"type": "notify", "kind": kind, "title": title, "body": body, **extra}, ttl_min)
+        log.info("powiadomienie %s dla użytkownika %s: %s", kind, user_id, title)
 
     def state_changed(self) -> None:
         for row in self.conn.execute("SELECT id FROM users"):
@@ -316,15 +332,31 @@ def pick_message(conn, category: str, level: int = 0, overdue: bool = True) -> s
     conn.execute("UPDATE messages SET last_used_at = ? WHERE id = ?", (now().isoformat(), choice["id"]))
     return choice["text"]
 
-def reminder_level(overdue_days: int, sent_today: int) -> int:
+def reminder_level(overdue_days: int, sent_today: int, auto_extended: bool = False) -> int:
     """Które przypomnienie dnia = poziom: 1., 2., 3., a od 4. już najostrzej.
 
-    W dniu po terminie zaczynamy od razu od poziomu 3.
+    Po automatycznym przedłużeniu od razu poziom 4. Gdy prośba o przedłużenie
+    czeka na odpowiedź, w dniu po terminie zaczynamy od poziomu 3.
     """
+    if auto_extended:
+        return 4
     level = min(4, sent_today + 1)
     if overdue_days >= 1:
         level = max(level, 3)
     return level
+
+
+def auto_extended_days(conn, h: sqlite3.Row, today: date) -> int:
+    """Ile dni dyżur jest przedłużony automatycznie (termin minął bez sprzątnięcia i bez prośby)."""
+    if not h["due_date"]:
+        return 0
+    overdue = (today - date.fromisoformat(h["due_date"])).days
+    if overdue < 1:
+        return 0
+    ext = pending_extension(conn)
+    if ext and ext["requester_id"] == h["assignee_id"]:
+        return 0  # poprosił(a), tylko druga osoba jeszcze nie odpowiedziała
+    return overdue
 
 def streak(conn, user_id: int) -> int:
     count = 0
@@ -521,16 +553,23 @@ def tick(conn, bus: Bus, t: datetime | None = None) -> list[str]:
         return sent
     partner = partner_of(conn, assignee["id"])
     overdue = (today - due).days
+    auto = auto_extended_days(conn, h, today) > 0
 
     sent_today = h["reminders_today"] if h["reminders_day"] == today.isoformat() else 0
     last = datetime.fromisoformat(h["last_reminder_at"]) if h["last_reminder_at"] else None
     interval = timedelta(minutes=max(5, assignee["notify_interval_min"]))
     if schedule.can_notify(settings_of(assignee), t, TZ) and (last is None or t - last >= interval - timedelta(seconds=30)):
-        level = min(reminder_level(overdue, sent_today), h["max_level"])
-        category = "extension" if h["extended"] and random.random() < 0.5 else "reminder"
+        level = min(reminder_level(overdue, sent_today, auto), h["max_level"])
+        category = "extension" if (h["extended"] or auto) and random.random() < 0.5 else "reminder"
         values = dict(name=assignee["name"], partner=partner["name"] if partner else "", days=overdue)
         body = fmt(pick_message(conn, category, level, overdue=overdue >= 1), conn, **values)
-        title = LEVEL_TITLES[level] + (" (po przedłużeniu)" if h["extended"] else "")
+        if auto:
+            suffix = " (auto-przedłużenie)"
+        elif h["extended"]:
+            suffix = " (po przedłużeniu)"
+        else:
+            suffix = ""
+        title = LEVEL_TITLES[level] + suffix
         bus.notify(assignee["id"], "reminder", title, body, ttl_min=20, level=level)
         conn.execute(
             "UPDATE household SET last_reminder_at = ?, reminders_day = ?, reminders_today = ? WHERE id = 1",
@@ -545,7 +584,8 @@ def tick(conn, bus: Bus, t: datetime | None = None) -> list[str]:
         and schedule.can_notify(settings_of(partner), t, TZ)
     ):
         body = fmt(pick_message(conn, "partner"), conn, name=assignee["name"], partner=partner["name"], days=overdue)
-        bus.notify(partner["id"], "partner", "Donos z kuwety", body, ttl_min=120)
+        title = "Donos: kuweta przedłużona automatycznie" if auto else "Donos z kuwety"
+        bus.notify(partner["id"], "partner", title, body, ttl_min=120)
         conn.execute("UPDATE household SET partner_alerted_on = ? WHERE id = 1", (today.isoformat(),))
         sent.append(f"partner:{partner['id']}")
     return sent
@@ -580,6 +620,7 @@ def state(conn, user: sqlite3.Row) -> dict:
             "due_date": h["due_date"],
             "days_left": (due - today).days,
             "extended": h["extended"],
+            "auto_extended": auto_extended_days(conn, h, today),
             "interval_days": h["interval_days"],
             "next_name": nxt["name"] if nxt else "?",
             "next_in_days": max((due - today).days, 0) + h["interval_days"],

@@ -97,9 +97,9 @@ def test_reminders_every_interval(env):
     assert core.tick(conn, bus, at(2026, 11, 2, 10, 30)) == ["reminder:1:4"]
     assert core.tick(conn, bus, at(2026, 11, 2, 11, 0)) == ["reminder:1:4"]
     assert core.tick(conn, bus, at(2026, 11, 2, 23, 30)) == []  # cisza nocna
-    # dzień po terminie: ostrzej + donos do drugiej osoby
+    # dzień po terminie: auto-przedłużenie, poziom 4 + donos do drugiej osoby
     sent = core.tick(conn, bus, at(2026, 11, 3, 9, 0))
-    assert "reminder:1:3" in sent and "partner:2" in sent
+    assert "reminder:1:4" in sent and "partner:2" in sent
 
 
 def test_clean_rotates_and_notifies(env):
@@ -200,3 +200,37 @@ def test_no_overdue_texts_on_due_day(env):
     for _ in range(60):
         text = core.pick_message(conn, "reminder", 4, overdue=False)
         assert "{ile_dni}" not in text and "{days}" not in text
+
+
+def test_auto_extension_goes_straight_to_level_4(env):
+    conn, bus, ua, ub = env
+    conn.execute("UPDATE household SET due_date='2026-11-02'")
+    assert core.tick(conn, bus, at(2026, 11, 2, 9, 0)) == ["reminder:1:1"]
+    # termin minął bez sprzątnięcia i bez prośby: auto-przedłużenie, od razu poziom 4
+    sent = core.tick(conn, bus, at(2026, 11, 3, 9, 0))
+    assert "reminder:1:4" in sent and "partner:2" in sent
+    last = [n for n in notes(conn, ua["id"]) if n["kind"] == "reminder"][-1]
+    assert "auto-przedłużenie" in last["title"]
+    donos = [n for n in notes(conn, ub["id"]) if n["kind"] == "partner"][-1]
+    assert "automatycznie" in donos["title"]
+    assert core.auto_extended_days(conn, core.household(conn), date(2026, 11, 3)) == 1
+
+
+def test_pending_request_avoids_auto_extension(env):
+    conn, bus, ua, ub = env
+    today = core.now().date()
+    conn.execute("UPDATE household SET due_date=?", ((today - timedelta(days=1)).isoformat(),))
+    core.request_extension(conn, bus, ua)
+    assert core.auto_extended_days(conn, core.household(conn), today) == 0
+    assert core.reminder_level(1, 0) == 3
+
+
+def test_event_ids_are_not_reused(tmp_path):
+    conn = core.connect(str(tmp_path / "k.db"))
+    bus = core.Bus(conn)
+    bus.publish(1, {"type": "state"})
+    bus.publish(1, {"type": "state"})
+    top = bus.last_id(1)
+    conn.execute("DELETE FROM events")
+    bus.publish(1, {"type": "state"})
+    assert bus.last_id(1) > top
