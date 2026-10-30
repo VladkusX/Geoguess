@@ -77,7 +77,7 @@ Aplikacja na Androida dla dwóch osób, która wulgarnie przypomina o sprzątani
 ## Stan na 30.10.2026 wieczór
 
 - **Ostatnia wersja:** APK `kuweta-19` (auto-przedłużenie z poziomem 4, zapasowe dostarczanie zdarzeń, tylko motyw Brutal, test kanału „Od drugiej osoby”). Serwer: obraz `latest` z tej samej gałęzi.
-- **Brak info o sprzątnięciu (30.10, 16:20):** serwer wysłał zdarzenie 31 do Vlada, telefon go nie pokazał. Do sprawdzenia: czy na POCO dochodzi test „Od drugiej osoby” i czy kanał nie jest wyłączony.
+- **Brak info o sprzątnięciu (30.10, 16:20):** serwer wysłał zdarzenie 31 do Vlada, telefon go nie pokazał. Test obu kanałów na POCO (30.10, 23:38) przyszedł, więc najpewniej użytkownik usunął je razem z innymi powiadomieniami. Jeśli się powtórzy, sprawdzić `docker logs kuweta` (logowane od kuweta-18).
 - **Otwarte sprawy:**
   - **Zegarek:** użytkownik chce miauczenia na zegarku i mówi, że jego zegarek obsługuje dźwięk. Czekamy na dokładny model. Jeśli to Wear OS, trzeba zrobić osobną małą aplikację na zegarek, bo przekazane powiadomienie nie niesie pliku dźwięku.
   - Sprawdzić, czy na POCO przypomnienia dochodzą po 30+ min blokady, przy ukrytym powiadomieniu usługi. Jeśli nie, przywrócić widoczny kanał.
