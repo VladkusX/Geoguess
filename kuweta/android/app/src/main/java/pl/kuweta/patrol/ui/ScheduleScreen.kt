@@ -150,7 +150,7 @@ fun ScheduleScreen() {
                 cur.cycle.forEachIndexed { i, code ->
                     val bg = SHIFT_COLORS[code] ?: Paper
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("${i + 1}", style = MaterialTheme.typography.bodySmall.copy(fontSize = 9.sp))
+                        Text("${i + 1}", style = MaterialTheme.typography.bodySmall.copy(fontSize = bsp(9)))
                         Text(
                             if (code == "-") "·" else code,
                             fontWeight = FontWeight.Bold,
@@ -279,7 +279,7 @@ private fun MonthCalendar(s: ScheduleSettings, onDayChange: (LocalDate, String?)
                             .clickable { editing = date }
                             .padding(vertical = 3.dp),
                     ) {
-                        Text("$dayNum", style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.sp), color = fg)
+                        Text("$dayNum", style = MaterialTheme.typography.bodySmall.copy(fontSize = bsp(10)), color = fg)
                         Text(if (code == "-") "·" else code, fontWeight = FontWeight.Bold, color = fg)
                     }
                 }

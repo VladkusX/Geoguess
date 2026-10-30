@@ -12,6 +12,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -154,6 +156,7 @@ fun HomeScreen(onLogout: () -> Unit) {
         error?.let { Text("Offline: $it", color = Orange) }
 
         BatteryCard()
+        ThemeCard()
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             BrutalButton("Test powiadomienia", { act({ it.testNotify() }, "Wysłane. Powinno przyjść za sekundę.") }, Modifier.weight(1f), bg = Paper, fg = Ink, small = true, enabled = !busy)
@@ -279,7 +282,7 @@ private fun TodayCard(s: AppState) {
                 Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
                         date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale("pl")).take(2),
-                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 9.sp),
+                        style = MaterialTheme.typography.bodySmall.copy(fontSize = bsp(9)),
                     )
                     val bg = SHIFT_COLORS[day.code] ?: Paper
                     Text(
@@ -308,7 +311,7 @@ private fun Legend(color: Color, label: String) {
                 .background(color)
                 .border(1.5.dp, Ink)
         )
-        Text(label, style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.sp))
+        Text(label, style = MaterialTheme.typography.bodySmall.copy(fontSize = bsp(10)))
     }
 }
 
@@ -411,4 +414,19 @@ private fun openAppSettings(context: Context) {
     context.startActivity(
         Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}"))
     )
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ThemeCard() {
+    val context = LocalContext.current
+    BrutalCard {
+        Text("MOTYW", style = MaterialTheme.typography.titleMedium)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            AppTheme.entries.forEach { t ->
+                Chip(t.label, ThemeState.theme == t, { ThemeState.set(context, t) })
+            }
+        }
+        Text("Motyw jest twój, drugi telefon ma swój.", style = MaterialTheme.typography.bodySmall)
+    }
 }

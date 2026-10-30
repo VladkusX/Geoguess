@@ -4,6 +4,7 @@ import android.Manifest
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -55,8 +56,15 @@ import pl.kuweta.patrol.push.Watchdog
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
         setContent {
+            val dark = ThemeState.theme.dark
+            LaunchedEffect(dark) {
+                val transparent = android.graphics.Color.TRANSPARENT
+                enableEdgeToEdge(
+                    statusBarStyle = if (dark) SystemBarStyle.dark(transparent) else SystemBarStyle.light(transparent, transparent),
+                    navigationBarStyle = SystemBarStyle.dark(transparent),
+                )
+            }
             KuwetaTheme {
                 Root()
             }
@@ -124,7 +132,7 @@ private fun MainScaffold(onLogout: () -> Unit) {
                 val selected = t == tab
                 Text(
                     t.label.uppercase(),
-                    style = MaterialTheme.typography.labelLarge.copy(fontSize = 12.sp),
+                    style = MaterialTheme.typography.labelLarge.copy(fontSize = dsp(12)),
                     color = if (selected) Ink else Yellow,
                     textAlign = TextAlign.Center,
                     modifier = Modifier

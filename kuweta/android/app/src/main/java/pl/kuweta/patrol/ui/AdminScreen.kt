@@ -165,7 +165,7 @@ fun AdminScreen() {
             pair?.let { p ->
                 SelectionContainer {
                     Column {
-                        Text(p.code, style = MaterialTheme.typography.headlineLarge.copy(fontSize = 40.sp, letterSpacing = 6.sp))
+                        Text(p.code, style = MaterialTheme.typography.headlineLarge.copy(fontSize = dsp(40), letterSpacing = 6.sp))
                         Text("Serwer: ${Prefs(context).serverUrl}", style = MaterialTheme.typography.bodySmall)
                     }
                 }
