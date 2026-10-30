@@ -1,0 +1,258 @@
+package pl.kuweta.patrol.ui
+
+import android.app.DatePickerDialog
+import android.content.Context
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
+import pl.kuweta.patrol.data.AdminUser
+import pl.kuweta.patrol.data.Api
+import pl.kuweta.patrol.data.ApiException
+import pl.kuweta.patrol.data.Prefs
+import pl.kuweta.patrol.data.Repo
+import pl.kuweta.patrol.data.ScheduleSettings
+import java.time.LocalDate
+import java.time.format.TextStyle
+import java.time.temporal.ChronoUnit
+import java.util.Locale
+
+private val PRESET_5BRYG = listOf("R", "R", "P", "P", "N", "N", "-", "-", "-", "-")
+private val PRESET_3ZM = List(5) { "N" } + listOf("-", "-") + List(5) { "P" } + listOf("-", "-") + List(5) { "R" } + listOf("-", "-")
+private val DEFAULT_SHIFTS = mapOf("R" to listOf("06:00", "14:00"), "P" to listOf("14:00", "22:00"), "N" to listOf("22:00", "06:00"))
+private val CODES = listOf("R", "P", "N", "-")
+
+fun shiftCodeFor(s: ScheduleSettings, day: LocalDate): String {
+    s.overrides[day.toString()]?.let { return it }
+    if (s.cycle.isEmpty()) return "-"
+    val start = s.cycleStart?.let { runCatching { LocalDate.parse(it) }.getOrNull() } ?: day
+    val diff = ChronoUnit.DAYS.between(start, day)
+    return s.cycle[Math.floorMod(diff, s.cycle.size.toLong()).toInt()]
+}
+
+fun pickDate(context: Context, initial: String?, onPicked: (String) -> Unit) {
+    val d = initial?.let { runCatching { LocalDate.parse(it) }.getOrNull() } ?: LocalDate.now()
+    DatePickerDialog(context, { _, y, m, day -> onPicked(LocalDate.of(y, m + 1, day).toString()) }, d.year, d.monthValue - 1, d.dayOfMonth).show()
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun ScheduleScreen() {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val state by Repo.state.collectAsState()
+    val isAdmin = state?.me?.isAdmin == true
+
+    var people by remember { mutableStateOf<List<AdminUser>>(emptyList()) }
+    var targetId by remember { mutableStateOf<Int?>(null) } // null = ja
+    var s by remember { mutableStateOf<ScheduleSettings?>(null) }
+    var message by remember { mutableStateOf<String?>(null) }
+    var busy by remember { mutableStateOf(false) }
+
+    LaunchedEffect(targetId) {
+        try {
+            val api = Api(Prefs(context))
+            if (isAdmin) people = api.admin().users
+            s = if (targetId == null) api.schedule() else people.first { it.id == targetId }.schedule
+            message = null
+        } catch (e: ApiException) {
+            message = e.message
+        }
+    }
+
+    Column(
+        Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Sticker("Grafik zmian")
+        if (isAdmin && people.size > 1) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Chip("Mój", targetId == null, { targetId = null })
+                people.filter { it.id != state?.me?.id }.forEach { p ->
+                    Chip(p.name, targetId == p.id, { targetId = p.id })
+                }
+            }
+        }
+        val cur = s
+        if (cur == null) {
+            Text(message ?: "Ładuję…")
+            return@Column
+        }
+        fun update(f: ScheduleSettings.() -> ScheduleSettings) { s = cur.f() }
+
+        BrutalCard {
+            SectionTitle("Szablon")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Chip("5-brygadówka", cur.cycle == PRESET_5BRYG, {
+                    update { copy(cycle = PRESET_5BRYG) }
+                }, Modifier.weight(1f))
+                Chip("Pn–Pt 3 zmiany", cur.cycle == PRESET_3ZM, {
+                    val monday = LocalDate.now().let { it.minusDays((it.dayOfWeek.value - 1).toLong()) }
+                    update { copy(cycle = PRESET_3ZM, cycleStart = monday.toString()) }
+                }, Modifier.weight(1f))
+            }
+            Text("Stuknij dzień, żeby zmienić: R → P → N → wolne.", style = MaterialTheme.typography.bodySmall)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                cur.cycle.forEachIndexed { i, code ->
+                    val bg = SHIFT_COLORS[code] ?: Paper
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("${i + 1}", style = MaterialTheme.typography.bodySmall.copy(fontSize = 9.sp))
+                        Text(
+                            if (code == "-") "·" else code,
+                            fontWeight = FontWeight.Bold,
+                            color = if (bg == Ink) Yellow else Ink,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier
+                                .width(30.dp)
+                                .background(bg)
+                                .border(2.dp, Ink)
+                                .clickable {
+                                    val next = CODES[(CODES.indexOf(code) + 1) % CODES.size]
+                                    update { copy(cycle = cycle.toMutableList().also { it[i] = next }) }
+                                }
+                                .padding(vertical = 4.dp),
+                        )
+                    }
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                BrutalButton("+ dzień", { update { copy(cycle = cycle + "-") } }, Modifier.weight(1f), bg = Paper, fg = Ink, small = true)
+                BrutalButton("− dzień", { if (cur.cycle.size > 1) update { copy(cycle = cycle.dropLast(1)) } }, Modifier.weight(1f), bg = Paper, fg = Ink, small = true)
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Dzień 1 cyklu:", modifier = Modifier.weight(1f))
+                Chip(cur.cycleStart ?: "wybierz", false, {
+                    pickDate(context, cur.cycleStart) { picked -> update { copy(cycleStart = picked) } }
+                })
+            }
+        }
+
+        BrutalCard {
+            SectionTitle("Podgląd 14 dni")
+            val today = LocalDate.now()
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                for (i in 0 until 14) {
+                    val day = today.plusDays(i.toLong())
+                    val code = shiftCodeFor(cur, day)
+                    val bg = SHIFT_COLORS[code] ?: Paper
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(38.dp)) {
+                        Text(
+                            day.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale("pl")).take(2) + " " + day.dayOfMonth,
+                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 9.sp),
+                        )
+                        Text(
+                            if (code == "-") "·" else code,
+                            fontWeight = FontWeight.Bold,
+                            color = if (bg == Ink) Yellow else Ink,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(bg)
+                                .border(2.dp, Ink)
+                                .padding(vertical = 4.dp),
+                        )
+                    }
+                }
+            }
+        }
+
+        BrutalCard {
+            SectionTitle("Godziny zmian")
+            listOf("R", "P", "N").forEach { code ->
+                val hours = cur.shifts[code] ?: DEFAULT_SHIFTS.getValue(code)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(SHIFT_NAMES.getValue(code), modifier = Modifier.width(100.dp), fontWeight = FontWeight.Bold)
+                    BrutalField(hours[0], { v -> update { copy(shifts = shifts + (code to listOf(v, hours[1]))) } }, "od", Modifier.weight(1f))
+                    BrutalField(hours[1], { v -> update { copy(shifts = shifts + (code to listOf(hours[0], v))) } }, "do", Modifier.weight(1f))
+                }
+            }
+        }
+
+        BrutalCard {
+            SectionTitle("Kiedy dać spokój")
+            NumberRow("Dojazd przed zmianą (min)", cur.commuteMin) { update { copy(commuteMin = it) } }
+            NumberRow("Męczenie po robocie (min)", cur.graceMin) { update { copy(graceMin = it) } }
+            NumberRow("Sen po nocce (godz.)", cur.sleepAfterNightH) { update { copy(sleepAfterNightH = it) } }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                BrutalField(cur.quietStart, { v -> update { copy(quietStart = v) } }, "Cisza nocna od", Modifier.weight(1f))
+                BrutalField(cur.quietEnd, { v -> update { copy(quietEnd = v) } }, "do", Modifier.weight(1f))
+            }
+            Text("Po rannej zmianie nie ma snu. Po popołudniówce i nocce przez „męczenie po robocie” powiadomienia jeszcze lecą, potem cisza.", style = MaterialTheme.typography.bodySmall)
+        }
+
+        BrutalCard {
+            SectionTitle("Wyjątki (urlop, L4, zamiana)")
+            cur.overrides.toSortedMap().forEach { (date, code) ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("$date · ${SHIFT_NAMES[code] ?: code}", modifier = Modifier.weight(1f))
+                    Chip("usuń", false, { update { copy(overrides = overrides - date) } })
+                }
+            }
+            var newCode by remember { mutableStateOf("-") }
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                CODES.forEach { c -> Chip(SHIFT_NAMES.getValue(c), newCode == c, { newCode = c }) }
+            }
+            BrutalButton("+ dodaj dzień", {
+                pickDate(context, null) { picked -> update { copy(overrides = overrides + (picked to newCode)) } }
+            }, bg = Paper, fg = Ink, small = true)
+        }
+
+        message?.let { Text(it, fontWeight = FontWeight.Bold) }
+        BrutalButton(if (busy) "Zapisuję…" else "Zapisz grafik", enabled = !busy, onClick = {
+            busy = true
+            scope.launch {
+                try {
+                    val api = Api(Prefs(context))
+                    s = targetId?.let { api.saveScheduleFor(it, cur) } ?: api.saveSchedule(cur)
+                    message = "Zapisane."
+                    Repo.refresh(context)
+                } catch (e: ApiException) {
+                    message = e.message
+                } finally {
+                    busy = false
+                }
+            }
+        })
+    }
+}
+
+@Composable
+private fun NumberRow(label: String, value: Int, onChange: (Int) -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(label, modifier = Modifier.weight(1f))
+        Chip("−", false, { onChange((value - if (value > 20) 15 else 1).coerceAtLeast(0)) })
+        Text("$value", fontWeight = FontWeight.Bold, modifier = Modifier.width(36.dp), textAlign = TextAlign.Center)
+        Chip("+", false, { onChange(value + if (value >= 20) 15 else 1) })
+    }
+}
