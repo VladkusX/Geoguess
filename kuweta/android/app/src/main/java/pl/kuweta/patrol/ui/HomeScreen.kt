@@ -363,7 +363,11 @@ private fun BatteryCard() {
     val maker = Build.MANUFACTURER.lowercase()
     val xiaomi = maker.contains("xiaomi") || maker.contains("poco") || maker.contains("redmi")
     val samsung = maker.contains("samsung")
-    if (ignoring && !xiaomi && !samsung) return
+    // Autostartu i kłódki na Xiaomi nie da się odczytać, więc po zrobieniu użytkownik chowa kartę sam.
+    // Karta wraca, jeśli system znowu zacznie usypiać aplikację.
+    val prefs = remember { context.getSharedPreferences("kuweta_ui", Context.MODE_PRIVATE) }
+    var dismissed by remember { mutableStateOf(prefs.getBoolean("battery_card_done", false)) }
+    if (ignoring && (dismissed || (!xiaomi && !samsung))) return
 
     BrutalCard {
         Text("ŻEBY POWIADOMIENIA DOCHODZIŁY", style = MaterialTheme.typography.titleMedium)
@@ -383,6 +387,12 @@ private fun BatteryCard() {
             Text("Samsung: Ustawienia → Bateria → Limity użycia w tle → dodaj Kuweta Patrol do „Aplikacje nigdy nieusypiane”.")
         }
         BrutalButton("Ustawienia aplikacji", { openAppSettings(context) }, bg = Paper, fg = Ink, small = true)
+        if (ignoring) {
+            BrutalButton("Zrobione, ukryj", {
+                prefs.edit().putBoolean("battery_card_done", true).apply()
+                dismissed = true
+            }, small = true)
+        }
     }
 }
 
