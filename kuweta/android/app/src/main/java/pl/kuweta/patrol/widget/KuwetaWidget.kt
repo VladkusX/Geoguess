@@ -10,7 +10,9 @@ import android.widget.RemoteViews
 import pl.kuweta.patrol.R
 import pl.kuweta.patrol.data.AppState
 import pl.kuweta.patrol.data.Repo
+import pl.kuweta.patrol.ui.AppTheme
 import pl.kuweta.patrol.ui.MainActivity
+import pl.kuweta.patrol.ui.ThemeState
 import pl.kuweta.patrol.ui.daysWord
 
 class KuwetaWidget : AppWidgetProvider() {
@@ -26,6 +28,19 @@ class KuwetaWidget : AppWidgetProvider() {
             Repo.loadCached(context)
             val views = RemoteViews(context.packageName, R.layout.widget)
             val (sticker, main, sub) = texts(Repo.state.value)
+            val t = ThemeState.theme
+            val (bgRes, stickerRes) = when (t) {
+                AppTheme.BRUTAL -> R.drawable.widget_bg_brutal to R.drawable.sticker_bg_brutal
+                AppTheme.ARCADE -> R.drawable.widget_bg_arcade to R.drawable.sticker_bg_arcade
+                AppTheme.PASTEL -> R.drawable.widget_bg_pastel to R.drawable.sticker_bg_pastel
+                AppTheme.NOCKA -> R.drawable.widget_bg_nocka to R.drawable.sticker_bg_nocka
+                AppTheme.PIEKLO -> R.drawable.widget_bg_pieklo to R.drawable.sticker_bg_pieklo
+            }
+            views.setInt(R.id.widget_root, "setBackgroundResource", bgRes)
+            views.setInt(R.id.w_sticker, "setBackgroundResource", stickerRes)
+            views.setTextColor(R.id.w_sticker, t.card.toInt())
+            views.setTextColor(R.id.w_main, t.line.toInt())
+            views.setTextColor(R.id.w_sub, t.line.toInt())
             views.setTextViewText(R.id.w_sticker, sticker)
             views.setTextViewText(R.id.w_main, main)
             views.setTextViewText(R.id.w_sub, sub)

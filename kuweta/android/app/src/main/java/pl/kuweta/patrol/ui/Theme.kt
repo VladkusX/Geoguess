@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import pl.kuweta.patrol.R
+import pl.kuweta.patrol.widget.KuwetaWidget
 
 /**
  * Motywy aplikacji. Nazwy tokenów (Yellow, Ink...) pochodzą z pierwszego motywu "Brutal",
@@ -90,6 +91,7 @@ object ThemeState {
     fun set(context: Context, t: AppTheme) {
         theme = t
         prefs(context).edit().putString("theme", t.name).apply()
+        KuwetaWidget.updateAll(context)
     }
 }
 
