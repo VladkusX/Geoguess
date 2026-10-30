@@ -4,8 +4,8 @@ Zmienne: {name} - kto ma dyżur, {partner} - druga osoba,
 {ile_dni} - "1 dzień" / "3 dni" (spóźnienie albo czas do następnego dyżuru), {days} - sama liczba,
 {cat} - losowy kot z listy admina, {cats} - wszystkie koty ("Beżi i Mruczek").
 Imiona stoją zawsze w mianowniku, bo nie odmieniamy ich automatycznie.
-Poziom 1-4 dotyczy przypomnień: im dłużej kuweta czeka, tym wyższy. {ile_dni} tylko od poziomu 4,
-bo niżej spóźnienie wynosi zero.
+Poziom 1-4 dotyczy przypomnień: 1., 2., 3. przypomnienie dnia, od 4. już poziom 4.
+Teksty z {ile_dni} trafiają tylko do przypomnień przy faktycznym spóźnieniu.
 """
 
 # Podniesienie wersji kasuje wszystkie wbudowane teksty na serwerze i wgrywa te poniżej.

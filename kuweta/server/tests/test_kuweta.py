@@ -92,7 +92,10 @@ def test_reminders_every_interval(env):
     assert core.tick(conn, bus, at(2026, 11, 1, 12)) == []  # przed terminem cisza
     assert core.tick(conn, bus, at(2026, 11, 2, 9, 0)) == ["reminder:1:1"]
     assert core.tick(conn, bus, at(2026, 11, 2, 9, 10)) == []
-    assert core.tick(conn, bus, at(2026, 11, 2, 9, 30)) == ["reminder:1:1"]
+    assert core.tick(conn, bus, at(2026, 11, 2, 9, 30)) == ["reminder:1:2"]
+    assert core.tick(conn, bus, at(2026, 11, 2, 10, 0)) == ["reminder:1:3"]
+    assert core.tick(conn, bus, at(2026, 11, 2, 10, 30)) == ["reminder:1:4"]
+    assert core.tick(conn, bus, at(2026, 11, 2, 11, 0)) == ["reminder:1:4"]
     assert core.tick(conn, bus, at(2026, 11, 2, 23, 30)) == []  # cisza nocna
     # dzień po terminie: ostrzej + donos do drugiej osoby
     sent = core.tick(conn, bus, at(2026, 11, 3, 9, 0))
@@ -190,3 +193,10 @@ def test_pool_mentions_cats_and_drops_old_texts(tmp_path):
     assert "Ej, {name}. Kuweta. Wiesz co robić." not in texts
     with_cats = [t for t in texts if "{cat}" in t or "{cats}" in t]
     assert len(with_cats) / len(texts) > 0.75
+
+
+def test_no_overdue_texts_on_due_day(env):
+    conn, bus, ua, ub = env
+    for _ in range(60):
+        text = core.pick_message(conn, "reminder", 4, overdue=False)
+        assert "{ile_dni}" not in text and "{days}" not in text

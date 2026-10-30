@@ -293,7 +293,7 @@ def fmt(text: str, conn=None, **values) -> str:
         return text
 
 
-def pick_message(conn, category: str, level: int = 0) -> str:
+def pick_message(conn, category: str, level: int = 0, overdue: bool = True) -> str:
     """Losuje tekst, omijając ostatnio użyte, żeby się nie powtarzały.
 
     Przypomnienia biorą teksty z poziomu docelowego i jednego niżej (więcej różnorodności).
@@ -302,6 +302,9 @@ def pick_message(conn, category: str, level: int = 0) -> str:
         "SELECT id, text, level, last_used_at FROM messages WHERE category = ? AND level <= ?",
         (category, max(level, 0)),
     ).fetchall()
+    if not overdue:
+        # Bez spóźnienia teksty o dniach spóźnienia nie mają sensu ("0 dni spóźnienia").
+        rows = [r for r in rows if "{ile_dni}" not in r["text"] and "{days}" not in r["text"]] or rows
     if not rows:
         return "Kuweta!"
     top = max(r["level"] for r in rows)
@@ -314,14 +317,14 @@ def pick_message(conn, category: str, level: int = 0) -> str:
     return choice["text"]
 
 def reminder_level(overdue_days: int, sent_today: int) -> int:
-    if overdue_days >= 2:
-        return 4
-    if overdue_days == 1:
-        return 3 if sent_today < 4 else 4
-    if sent_today < 2:
-        return 1
-    return 2 if sent_today < 6 else 3
+    """Które przypomnienie dnia = poziom: 1., 2., 3., a od 4. już najostrzej.
 
+    W dniu po terminie zaczynamy od razu od poziomu 3.
+    """
+    level = min(4, sent_today + 1)
+    if overdue_days >= 1:
+        level = max(level, 3)
+    return level
 
 def streak(conn, user_id: int) -> int:
     count = 0
@@ -526,7 +529,7 @@ def tick(conn, bus: Bus, t: datetime | None = None) -> list[str]:
         level = min(reminder_level(overdue, sent_today), h["max_level"])
         category = "extension" if h["extended"] and random.random() < 0.5 else "reminder"
         values = dict(name=assignee["name"], partner=partner["name"] if partner else "", days=overdue)
-        body = fmt(pick_message(conn, category, level), conn, **values)
+        body = fmt(pick_message(conn, category, level, overdue=overdue >= 1), conn, **values)
         title = LEVEL_TITLES[level] + (" (po przedłużeniu)" if h["extended"] else "")
         bus.notify(assignee["id"], "reminder", title, body, ttl_min=20, level=level)
         conn.execute(
