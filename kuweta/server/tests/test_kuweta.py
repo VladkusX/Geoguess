@@ -160,3 +160,21 @@ def test_reseed_keeps_custom_messages(tmp_path):
     texts = [r[0] for r in conn.execute("SELECT text FROM messages")]
     assert "mój tekst" in texts and "stary" not in texts
     assert any("kurwa" in t.lower() for t in texts)
+
+
+def test_messages_do_not_repeat_quickly(env):
+    conn, bus, ua, ub = env
+    level2 = conn.execute("SELECT COUNT(*) FROM messages WHERE category='reminder' AND level IN (1, 2)").fetchone()[0]
+    picked = [core.pick_message(conn, "reminder", 2) for _ in range(level2 // 2)]
+    assert len(set(picked)) == len(picked)  # pierwsza połowa puli bez żadnego powtórzenia
+
+
+def test_ile_dni_and_placeholders(env):
+    conn, bus, ua, ub = env
+    assert core.fmt("{ile_dni}", conn, days=1) == "1 dzień"
+    assert core.fmt("{ile_dni}", conn, days=3) == "3 dni"
+    core.set_cats(conn, ["Beżi"])
+    for (text,) in conn.execute("SELECT text FROM messages"):
+        out = core.fmt(text, conn, name="Vlad", partner="Ania", days=2)
+        assert "{" not in out, text
+    assert conn.execute("SELECT COUNT(*) FROM messages").fetchone()[0] >= 140

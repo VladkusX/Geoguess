@@ -112,6 +112,8 @@ def migrate(conn: sqlite3.Connection) -> None:
     cols = {r["name"] for r in conn.execute("PRAGMA table_info(household)")}
     if "cats" not in cols:
         conn.execute("ALTER TABLE household ADD COLUMN cats TEXT NOT NULL DEFAULT '[]'")
+    if "last_used_at" not in {r["name"] for r in conn.execute("PRAGMA table_info(messages)")}:
+        conn.execute("ALTER TABLE messages ADD COLUMN last_used_at TEXT")
     for col in ("sound_reminder", "sound_partner"):
         if col not in cols:
             conn.execute(f"ALTER TABLE household ADD COLUMN {col} INTEGER")
@@ -282,6 +284,9 @@ def fmt(text: str, conn=None, **values) -> str:
     names = cats(conn) if conn is not None else []
     values.setdefault("cat", random.choice(names) if names else "Kot")
     values.setdefault("cats", cats_phrase(names))
+    if "days" in values:
+        d = int(values["days"])
+        values.setdefault("ile_dni", f"{d} {'dzień' if d == 1 else 'dni'}")
     try:
         return text.format(**values)
     except (KeyError, IndexError, ValueError):
@@ -289,14 +294,24 @@ def fmt(text: str, conn=None, **values) -> str:
 
 
 def pick_message(conn, category: str, level: int = 0) -> str:
+    """Losuje tekst, omijając ostatnio użyte, żeby się nie powtarzały.
+
+    Przypomnienia biorą teksty z poziomu docelowego i jednego niżej (więcej różnorodności).
+    """
     rows = conn.execute(
-        "SELECT text, level FROM messages WHERE category = ? AND level <= ?", (category, max(level, 0))
+        "SELECT id, text, level, last_used_at FROM messages WHERE category = ? AND level <= ?",
+        (category, max(level, 0)),
     ).fetchall()
     if not rows:
         return "Kuweta!"
     top = max(r["level"] for r in rows)
-    return random.choice([r["text"] for r in rows if r["level"] == top])
-
+    pool = [r for r in rows if r["level"] in (top, top - 1)] if category == "reminder" else rows
+    # Najpierw nigdy nieużyte, potem najdawniej użyte. Losujemy z najstarszej połowy.
+    pool.sort(key=lambda r: r["last_used_at"] or "")
+    fresh = pool[: max(1, len(pool) // 2)]
+    choice = random.choice(fresh)
+    conn.execute("UPDATE messages SET last_used_at = ? WHERE id = ?", (now().isoformat(), choice["id"]))
+    return choice["text"]
 
 def reminder_level(overdue_days: int, sent_today: int) -> int:
     if overdue_days >= 2:

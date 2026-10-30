@@ -325,7 +325,7 @@ private fun MessagesCard(d: AdminOverview, onAdd: (String, Int, String) -> Unit,
             }
         }
         BrutalField(text, { text = it }, "Nowy tekst", singleLine = false)
-        Text("Zmienne: {cat} – losowy kot, {cats} – wszystkie koty, {name} – kto ma dyżur, {partner} – druga osoba, {days} – dni spóźnienia", style = MaterialTheme.typography.bodySmall)
+        Text("Zmienne: {cat} – losowy kot, {cats} – wszystkie koty, {name} – kto ma dyżur, {partner} – druga osoba, {ile_dni} – np. „2 dni” spóźnienia (tylko poziom 4)", style = MaterialTheme.typography.bodySmall)
         BrutalButton("Dodaj tekst", {
             onAdd(category, if (category == "reminder") level else 0, text)
             text = ""
