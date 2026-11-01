@@ -26,6 +26,7 @@ object Notifier {
     const val ID_REMINDER = 100
     const val ID_EXT_BASE = 200
     const val ID_INFO = 300
+    const val ID_REVIEW = 400
     const val ID_ERROR = 900
 
     fun createChannels(context: Context) {
@@ -95,6 +96,7 @@ object Notifier {
         val (channel, id) = when (ev.kind) {
             "reminder", "test" -> CH_REMIND to ID_REMINDER
             "ext_request" -> CH_PARTNER to ID_EXT_BASE + (ev.extensionId ?: 0)
+            "review" -> CH_PARTNER to ID_REVIEW
             else -> CH_PARTNER to ID_INFO + (ev.kind?.hashCode()?.and(0xff) ?: 0)
         }
         val builder = NotificationCompat.Builder(context, channel)
@@ -117,6 +119,11 @@ object Notifier {
                 val extId = ev.extensionId ?: 0
                 builder.addAction(0, "Zgoda", action(context, ActionReceiver.APPROVE, extId))
                 builder.addAction(0, "Odmowa", action(context, ActionReceiver.REJECT, extId))
+            }
+            "review" -> {
+                val cleaningId = ev.cleaningId ?: 0
+                builder.addAction(0, "Lśni ✔", action(context, ActionReceiver.SHINY, cleaningId))
+                builder.addAction(0, "Syf ✖", action(context, ActionReceiver.DIRTY, cleaningId))
             }
         }
         post(context, id, builder.build())

@@ -86,6 +86,10 @@ class Api(private val prefs: Prefs) {
         call("POST", "/api/extensions/$id/decide", buildJsonObject { put("approve", approve) }.toString())
     }
 
+    suspend fun reviewCleaning(id: Int, approve: Boolean) {
+        call("POST", "/api/cleanings/$id/review", buildJsonObject { put("approve", approve) }.toString())
+    }
+
     suspend fun testNotify() { call("POST", "/api/test-notify") }
 
     suspend fun schedule(): ScheduleSettings = json.decodeFromString(call("GET", "/api/schedule"))

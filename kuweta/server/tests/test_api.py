@@ -60,7 +60,10 @@ def test_missed_events_catch_up(tmp_path):
 
     start = c.get("/api/events/missed?after=0", headers=ha).json()["last_id"]
     assert start > 0
-    assert c.post("/api/clean", headers=hb).status_code == 200  # Ania sprząta, Vlad ma dostać info
+    assert c.post("/api/clean", headers=hb).status_code == 200  # Ania sprząta, Vlad ma potwierdzić
     r = c.get(f"/api/events/missed?after={start}", headers=ha).json()
     kinds = [e["payload"].get("kind") for e in r["events"]]
-    assert "cleaned" in kinds and r["last_id"] > start
+    assert "review" in kinds and r["last_id"] > start
+    cid = c.get("/api/state", headers=ha).json()["pending_review"]["id"]
+    assert c.post(f"/api/cleanings/{cid}/review", headers=hb, json={"approve": True}).status_code == 403
+    assert c.post(f"/api/cleanings/{cid}/review", headers=ha, json={"approve": True}).json()["status"] == "approved"

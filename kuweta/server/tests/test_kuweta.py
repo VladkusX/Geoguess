@@ -106,8 +106,14 @@ def test_clean_rotates_and_notifies(env):
     conn, bus, ua, ub = env
     conn.execute("UPDATE household SET due_date='2026-11-02'")
     res = core.clean(conn, bus, ua)
-    assert res["next_assignee_id"] == ub["id"]
-    assert any(n["kind"] == "cleaned" for n in notes(conn, ub["id"]))
+    assert res["status"] == "pending"
+    assert core.household(conn)["assignee_id"] == ua["id"]  # dyżur czeka na potwierdzenie
+    review = [n for n in notes(conn, ub["id"]) if n["kind"] == "review"][-1]
+    with pytest.raises(core.ApiError):
+        core.review_cleaning(conn, bus, ua, res["cleaning_id"], True)  # nie sam sobie
+    out = core.review_cleaning(conn, bus, ub, review["cleaning_id"], True)
+    assert out["next_assignee_id"] == ub["id"]
+    assert any(n["kind"] == "review_decided" for n in notes(conn, ua["id"]))
     assert core.streak(conn, ua["id"]) == 1
 
 
@@ -123,7 +129,8 @@ def test_extension_flow(env):
     h = core.household(conn)
     assert h["due_date"] == (today + timedelta(days=1)).isoformat()
     assert h["extended"] == 1
-    core.clean(conn, bus, ua)
+    res = core.clean(conn, bus, ua)
+    core.review_cleaning(conn, bus, ub, res["cleaning_id"], True)
     assert core.streak(conn, ua["id"]) == 0  # przedłużenie przerywa streak
 
 
@@ -234,3 +241,32 @@ def test_event_ids_are_not_reused(tmp_path):
     conn.execute("DELETE FROM events")
     bus.publish(1, {"type": "state"})
     assert bus.last_id(1) > top
+
+
+def test_rejected_cleaning_keeps_duty_and_reminders(env):
+    conn, bus, ua, ub = env
+    today = core.now().date()
+    conn.execute("UPDATE household SET due_date=?", (today.isoformat(),))
+    res = core.clean(conn, bus, ua)
+    with pytest.raises(core.ApiError):
+        core.clean(conn, bus, ua)  # drugi raz, zanim ktoś potwierdzi
+    # w trakcie sprawdzania przypomnienia o kuwecie milczą
+    sent = core.tick(conn, bus, core.now() + timedelta(hours=1))
+    assert not any(x.startswith("reminder") for x in sent)
+    core.review_cleaning(conn, bus, ub, res["cleaning_id"], False)
+    h = core.household(conn)
+    assert h["assignee_id"] == ua["id"] and h["review_cleaning_id"] is None
+    assert any(n["title"].startswith("SYF") for n in notes(conn, ua["id"]))
+    assert core.streak(conn, ua["id"]) == 0
+    assert core.state(conn, ua)["pending_review"] is None
+
+
+def test_review_reminders_while_waiting(env):
+    conn, bus, ua, ub = env
+    conn.execute("UPDATE household SET due_date='2026-11-02'")
+    res = core.clean(conn, bus, ua)
+    conn.execute("UPDATE household SET review_reminded_at=NULL")
+    assert core.tick(conn, bus, at(2026, 11, 2, 12, 0)) == [f"review:{ub['id']}"]
+    assert core.tick(conn, bus, at(2026, 11, 2, 12, 10)) == []
+    assert core.tick(conn, bus, at(2026, 11, 2, 12, 30)) == [f"review:{ub['id']}"]
+    assert core.state(conn, ub)["pending_review"]["id"] == res["cleaning_id"]

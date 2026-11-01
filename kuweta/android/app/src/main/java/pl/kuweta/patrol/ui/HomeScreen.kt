@@ -140,10 +140,26 @@ fun HomeScreen(onLogout: () -> Unit) {
             }
         }
 
+        s.pendingReview?.let { review ->
+            BrutalCard(bg = if (review.mine) Paper else Orange) {
+                if (review.mine) {
+                    Text("CZEKA NA POTWIERDZENIE", style = MaterialTheme.typography.titleMedium)
+                    Text("${s.partner?.name ?: "Druga osoba"} musi potwierdzić, że kuweta lśni. Do tego czasu dyżur jest twój.")
+                } else {
+                    Text("${review.cleanerName.uppercase()} MÓWI, ŻE OGARNIĘTE", style = MaterialTheme.typography.titleMedium, color = Paper)
+                    Text("Zajrzyj do kuwety. Lśni czy syf?", color = Paper)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        BrutalButton("Lśni ✔", { act({ it.reviewCleaning(review.id, true) }, "Potwierdzone. Dyżur przechodzi dalej.") }, Modifier.weight(1f), bg = Paper, fg = Ink, enabled = !busy, small = true)
+                        BrutalButton("Syf ✖", { act({ it.reviewCleaning(review.id, false) }, "Odrzucone. Przypomnienia wracają.") }, Modifier.weight(1f), enabled = !busy, small = true)
+                    }
+                }
+            }
+        }
+
         TodayCard(s)
         ArcadeCard(s)
 
-        if (duty != null) {
+        if (duty != null && s.pendingReview == null) {
             BrutalButton(
                 if (duty.isMe) "Ogarnięte ✔" else "Ogarnięte za ${duty.assigneeName}",
                 onClick = { confirmClean = true },
@@ -172,11 +188,11 @@ fun HomeScreen(onLogout: () -> Unit) {
         AlertDialog(
             onDismissRequest = { confirmClean = false },
             title = { Text("Na pewno ogarnięte?", style = MaterialTheme.typography.titleMedium) },
-            text = { Text("Kłamstwo zostanie zapamiętane przez koty. Druga osoba dostanie powiadomienie.") },
+            text = { Text("Kłamstwo zostanie zapamiętane przez koty. Druga osoba musi potwierdzić, że lśni.") },
             confirmButton = {
                 TextButton(onClick = {
                     confirmClean = false
-                    act({ it.clean() }, "Zapisane. Szacun.")
+                    act({ it.clean() }, "Zgłoszone. Czekasz, aż druga osoba potwierdzi.")
                 }) { Text("TAK, CZYSTO", color = Ink, fontWeight = FontWeight.Bold) }
             },
             dismissButton = { TextButton(onClick = { confirmClean = false }) { Text("Jeszcze nie", color = Ink) } },

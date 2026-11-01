@@ -25,7 +25,7 @@ Aplikacja na Androida dla dwóch osób, która wulgarnie przypomina o sprzątani
 - Ten sam klucz oznacza zwykłą aktualizację: instalacja na starą wersję, bez odinstalowania i bez parowania.
 - GitHub sortuje release'y tekstowo (`kuweta-9` nad `kuweta-16`). Użytkownikowi zawsze podawaj bezpośredni link do najwyższego numeru.
 - Po pushu sprawdź wynik runu (narzędzia `mcp__github__actions_*`, logi przez `get_job_logs`). Dopiero potem dawaj link.
-- Lokalne testy serwera: `cd kuweta/server && pip install -r requirements.txt pytest httpx && python -m pytest -q tests` (ostatnio 23/23).
+- Lokalne testy serwera: `cd kuweta/server && pip install -r requirements.txt pytest httpx && python -m pytest -q tests` (ostatnio 25/25).
 
 ## Serwer na homelabie (maszyna `100tb`)
 
@@ -42,7 +42,7 @@ Aplikacja na Androida dla dwóch osób, która wulgarnie przypomina o sprzątani
 - **SSE:** Usługa pierwszoplanowa (`specialUse`) trzyma SSE na `/api/events?after=<id>`, a serwer wysyła ping co 25 s. Watchdog w WorkManagerze co 15 min.
   - Kanał usługi `service_hidden` ma od Androida 13 `IMPORTANCE_NONE`, czyli brak widocznego powiadomienia „czuwa”. Użytkownik tak chciał.
 - **Dźwięki gra aplikacja (`SoundPlayer`), a nie kanał,** bo dźwięku kanału nie da się zmienić. Admin wgrywa pliki (do 2 MB) i przypisuje je do „przypomnień” i „od drugiej osoby”. Domyślnie `raw/meow.ogg` i `raw/mrrp.ogg` (syntetyczne).
-- **Dyżur:** domyślnie co 2 dni, na zmianę. Kliknięcie „Ogarnięte” przekazuje dyżur drugiej osobie i wysyła jej powiadomienie.
+- **Dyżur:** domyślnie co 2 dni, na zmianę. Kliknięcie „Ogarnięte” tylko zgłasza sprzątnięcie (`cleanings.status = pending`). Druga osoba (ta, która nie kliknęła) musi potwierdzić „Lśni ✔” albo odrzucić „Syf ✖”. Do decyzji przypomnienia o kuwecie milczą, a sprawdzający dostaje ponaglenie co swój interwał. „Lśni”: dyżur przechodzi dalej, kolejny termin liczony od dnia sprzątnięcia. „Syf”: dyżur zostaje, przypomnienia wracają od razu. Serie i ranking liczą tylko potwierdzone.
 - **Przedłużenie:** +1 dzień, druga osoba musi się zgodzić. Do zgody przypomnienia lecą dalej, a następnego dnia teksty wypominają przedłużenie.
 - **Przypomnienia:** co N minut (osobno dla każdej osoby, domyślnie 30), tylko gdy osoba może je dostać:
   - nie w pracy ani 30 min przed zmianą (dojazd),

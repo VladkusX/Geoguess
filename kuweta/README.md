@@ -14,7 +14,7 @@ Telefon A ─┐                    ┌─ Telefon B
 
 ## Jak to działa
 
-- **Dyżur co 2 dni** (zmienia admin). Po kliknięciu „Ogarnięte” dyżur przechodzi na drugą osobę, a ta dostaje powiadomienie.
+- **Dyżur co 2 dni** (zmienia admin). Po kliknięciu „Ogarnięte” druga osoba musi potwierdzić, że kuweta lśni („Lśni ✔”), albo odrzucić („Syf ✖”). Dopiero potwierdzenie przekazuje dyżur dalej, a odrzucenie od razu przywraca przypomnienia.
 - **Przypomnienia** lecą w dniu dyżuru co 30 minut (osobno ustawiane dla każdej osoby), tylko gdy osoba nie pracuje i nie śpi.
 - **Grafik**: cykl dni (R/P/N/wolne) i data startu. Gotowe szablony:
   - pięciobrygadówka: `R R P P N N - - - -`

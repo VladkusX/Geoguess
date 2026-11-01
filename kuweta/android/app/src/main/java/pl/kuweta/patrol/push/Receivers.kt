@@ -24,6 +24,8 @@ class ActionReceiver : BroadcastReceiver() {
         const val EXTEND = "pl.kuweta.patrol.EXTEND"
         const val APPROVE = "pl.kuweta.patrol.APPROVE"
         const val REJECT = "pl.kuweta.patrol.REJECT"
+        const val SHINY = "pl.kuweta.patrol.SHINY"
+        const val DIRTY = "pl.kuweta.patrol.DIRTY"
         const val EXTRA_EXT_ID = "ext_id"
     }
 
@@ -38,7 +40,7 @@ class ActionReceiver : BroadcastReceiver() {
                     CLEAN -> {
                         api.clean()
                         Notifier.cancel(app, Notifier.ID_REMINDER)
-                        Notifier.simple(app, "Zapisane ✔", "Kuweta ogarnięta. Druga osoba już wie.", Notifier.ID_INFO)
+                        Notifier.simple(app, "Zgłoszone ✔", "Teraz druga osoba musi potwierdzić, że kuweta lśni.", Notifier.ID_INFO)
                     }
                     EXTEND -> {
                         api.requestExtension()
@@ -48,6 +50,10 @@ class ActionReceiver : BroadcastReceiver() {
                     APPROVE, REJECT -> {
                         api.decideExtension(extId, intent.action == APPROVE)
                         Notifier.cancel(app, Notifier.ID_EXT_BASE + extId)
+                    }
+                    SHINY, DIRTY -> {
+                        api.reviewCleaning(extId, intent.action == SHINY)
+                        Notifier.cancel(app, Notifier.ID_REVIEW)
                     }
                 }
                 Repo.refresh(app)

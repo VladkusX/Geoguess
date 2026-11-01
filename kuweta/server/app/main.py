@@ -148,6 +148,11 @@ async def clean(user=Depends(current_user)):
     return core.clean(conn, bus, user)
 
 
+@app.post("/api/cleanings/{cleaning_id}/review")
+async def review_cleaning(cleaning_id: int, body: DecideIn, user=Depends(current_user)):
+    return core.review_cleaning(conn, bus, user, cleaning_id, body.approve)
+
+
 @app.post("/api/extensions")
 async def request_extension(user=Depends(current_user)):
     return core.request_extension(conn, bus, user)

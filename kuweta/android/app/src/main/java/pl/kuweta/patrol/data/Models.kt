@@ -64,12 +64,22 @@ data class AppState(
     val partner: UserPub? = null,
     val duty: Duty? = null,
     @SerialName("pending_extension") val pendingExtension: PendingExt? = null,
+    @SerialName("pending_review") val pendingReview: PendingReview? = null,
     val streaks: List<Streak> = emptyList(),
     val today: Today,
     val upcoming: List<DayCode> = emptyList(),
     @SerialName("max_level") val maxLevel: Int = 4,
     val cats: List<String> = emptyList(),
     val sounds: Map<String, SoundRef?> = emptyMap(),
+)
+
+@Serializable
+data class PendingReview(
+    val id: Int,
+    @SerialName("cleaner_id") val cleanerId: Int,
+    @SerialName("cleaner_name") val cleanerName: String,
+    val at: String,
+    val mine: Boolean,
 )
 
 @Serializable
@@ -153,6 +163,7 @@ data class PushEvent(
     val title: String? = null,
     val body: String? = null,
     @SerialName("extension_id") val extensionId: Int? = null,
+    @SerialName("cleaning_id") val cleaningId: Int? = null,
     val level: Int? = null,
 )
 

@@ -119,6 +119,12 @@ def migrate(conn: sqlite3.Connection) -> None:
     for col in ("sound_reminder", "sound_partner"):
         if col not in cols:
             conn.execute(f"ALTER TABLE household ADD COLUMN {col} INTEGER")
+    for col in ("review_cleaning_id INTEGER", "review_reminded_at TEXT"):
+        if col.split()[0] not in cols:
+            conn.execute(f"ALTER TABLE household ADD COLUMN {col}")
+    if "status" not in {r["name"] for r in conn.execute("PRAGMA table_info(cleanings)")}:
+        # Stare sprzątnięcia uznajemy za potwierdzone.
+        conn.execute("ALTER TABLE cleanings ADD COLUMN status TEXT NOT NULL DEFAULT 'approved'")
     if "seed_version" not in cols:
         conn.execute("ALTER TABLE household ADD COLUMN seed_version INTEGER NOT NULL DEFAULT 0")
     events_sql = conn.execute("SELECT sql FROM sqlite_master WHERE name = 'events'").fetchone()[0]
@@ -353,6 +359,8 @@ def auto_extended_days(conn, h: sqlite3.Row, today: date) -> int:
     overdue = (today - date.fromisoformat(h["due_date"])).days
     if overdue < 1:
         return 0
+    if pending_review(conn):
+        return 0  # sprzątnięte, czeka tylko na potwierdzenie
     ext = pending_extension(conn)
     if ext and ext["requester_id"] == h["assignee_id"]:
         return 0  # poprosił(a), tylko druga osoba jeszcze nie odpowiedziała
@@ -361,7 +369,8 @@ def auto_extended_days(conn, h: sqlite3.Row, today: date) -> int:
 def streak(conn, user_id: int) -> int:
     count = 0
     for row in conn.execute(
-        "SELECT user_id, extensions, on_time FROM cleanings WHERE assignee_id = ? ORDER BY id DESC", (user_id,)
+        "SELECT user_id, extensions, on_time FROM cleanings WHERE assignee_id = ? AND status = 'approved' ORDER BY id DESC",
+        (user_id,),
     ):
         if row["user_id"] != user_id or row["extensions"] or not row["on_time"]:
             break
@@ -372,7 +381,8 @@ def streak(conn, user_id: int) -> int:
 def best_streak(conn, user_id: int) -> int:
     best = cur = 0
     for row in conn.execute(
-        "SELECT user_id, extensions, on_time FROM cleanings WHERE assignee_id = ? ORDER BY id", (user_id,)
+        "SELECT user_id, extensions, on_time FROM cleanings WHERE assignee_id = ? AND status = 'approved' ORDER BY id",
+        (user_id,),
     ):
         if row["user_id"] == user_id and not row["extensions"] and row["on_time"]:
             cur += 1
@@ -386,32 +396,95 @@ def pending_extension(conn) -> sqlite3.Row | None:
     return conn.execute("SELECT * FROM extensions WHERE status = 'pending' ORDER BY id DESC LIMIT 1").fetchone()
 
 
+REVIEW_REJECTED = [
+    "{partner} zajrzał(a) do kuwety i mówi, że to dalej syf. Łopatka w łapę, {name}, i jeszcze raz.",
+    "Kontrola jakości: NIE. {cat} dalej brodzi w gównie. Popraw to, {name}.",
+    "{name}, to nie było sprzątanie, tylko przemieszanie gówna. {partner} odrzuca.",
+    "Odrzucone. {cats} patrzą na ciebie z obrzydzeniem, {name}. Wracaj do kuwety.",
+]
+
+
+def pending_review(conn) -> sqlite3.Row | None:
+    h = household(conn)
+    if not h["review_cleaning_id"]:
+        return None
+    return conn.execute("SELECT * FROM cleanings WHERE id = ? AND status = 'pending'", (h["review_cleaning_id"],)).fetchone()
+
+
 def clean(conn, bus: Bus, user: sqlite3.Row) -> dict:
+    """Zgłoszenie sprzątnięcia. Dyżur przechodzi dalej dopiero, gdy druga osoba potwierdzi, że kuweta lśni."""
+    if pending_review(conn):
+        raise ApiError(409, "Sprzątnięcie już czeka na potwierdzenie drugiej osoby")
     h = household(conn)
     t = now()
     today = t.date()
     due = date.fromisoformat(h["due_date"]) if h["due_date"] else today
     on_time = today <= due
-    conn.execute(
-        "INSERT INTO cleanings (user_id, assignee_id, at, due_date, extensions, on_time) VALUES (?, ?, ?, ?, ?, ?)",
+    partner = partner_of(conn, user["id"])
+    cur = conn.execute(
+        "INSERT INTO cleanings (user_id, assignee_id, at, due_date, extensions, on_time, status) "
+        "VALUES (?, ?, ?, ?, ?, ?, 'pending')",
         (user["id"], h["assignee_id"], t.isoformat(), h["due_date"], h["extended"], int(on_time)),
     )
-    partner = partner_of(conn, user["id"])
-    next_assignee = partner["id"] if partner else user["id"]
-    next_due = today + timedelta(days=h["interval_days"])
+    cleaning_id = cur.lastrowid
+    if not partner:
+        return approve_cleaning(conn, bus, cleaning_id)
+    conn.execute(
+        "UPDATE household SET review_cleaning_id = ?, review_reminded_at = ? WHERE id = 1",
+        (cleaning_id, t.isoformat()),
+    )
+    body = fmt(pick_message(conn, "cleaned"), conn, name=user["name"], partner=partner["name"], days=h["interval_days"])
+    bus.notify(partner["id"], "review", f"{user['name']} mówi, że ogarnięte. Lśni?",
+               body + " Sprawdź i potwierdź.", cleaning_id=cleaning_id)
+    bus.state_changed()
+    return {"cleaning_id": cleaning_id, "status": "pending"}
+
+
+def approve_cleaning(conn, bus: Bus, cleaning_id: int) -> dict:
+    c = conn.execute("SELECT * FROM cleanings WHERE id = ?", (cleaning_id,)).fetchone()
+    h = household(conn)
+    t = now()
+    cleaner = conn.execute("SELECT * FROM users WHERE id = ?", (c["user_id"],)).fetchone()
+    partner = partner_of(conn, c["user_id"])
+    next_assignee = partner["id"] if partner else c["user_id"]
+    # Kolejny termin liczymy od dnia sprzątnięcia, nie od potwierdzenia.
+    next_due = datetime.fromisoformat(c["at"]).date() + timedelta(days=h["interval_days"])
+    conn.execute("UPDATE cleanings SET status = 'approved' WHERE id = ?", (cleaning_id,))
     conn.execute(
         "UPDATE household SET assignee_id = ?, due_date = ?, extended = 0, partner_alerted_on = NULL, "
-        "last_reminder_at = NULL, reminders_today = 0 WHERE id = 1",
+        "last_reminder_at = NULL, reminders_today = 0, review_cleaning_id = NULL, review_reminded_at = NULL "
+        "WHERE id = 1",
         (next_assignee, next_due.isoformat()),
     )
     conn.execute(
         "UPDATE extensions SET status = 'cancelled', decided_at = ? WHERE status = 'pending'", (t.isoformat(),)
     )
     if partner:
-        body = fmt(pick_message(conn, "cleaned"), conn, name=user["name"], partner=partner["name"], days=h["interval_days"])
-        bus.notify(partner["id"], "cleaned", "Kuweta ogarnięta ✔", body)
+        bus.notify(cleaner["id"], "review_decided", "Kuweta lśni ✔",
+                   f"{partner['name']} potwierdza, że czysto. Dyżur przechodzi dalej.")
     bus.state_changed()
-    return {"next_assignee_id": next_assignee, "next_due": next_due.isoformat(), "on_time": on_time}
+    return {"next_assignee_id": next_assignee, "next_due": next_due.isoformat(),
+            "on_time": bool(c["on_time"]), "status": "approved"}
+
+
+def review_cleaning(conn, bus: Bus, user: sqlite3.Row, cleaning_id: int, approve: bool) -> dict:
+    c = pending_review(conn)
+    if not c or c["id"] != cleaning_id:
+        raise ApiError(404, "To sprzątnięcie jest już rozstrzygnięte")
+    if c["user_id"] == user["id"]:
+        raise ApiError(403, "Nie możesz sam(a) sobie potwierdzić czystości, cwaniaku")
+    if approve:
+        return approve_cleaning(conn, bus, cleaning_id)
+    cleaner = conn.execute("SELECT * FROM users WHERE id = ?", (c["user_id"],)).fetchone()
+    conn.execute("UPDATE cleanings SET status = 'rejected' WHERE id = ?", (cleaning_id,))
+    # Przypomnienia wracają od razu.
+    conn.execute(
+        "UPDATE household SET review_cleaning_id = NULL, review_reminded_at = NULL, last_reminder_at = NULL WHERE id = 1"
+    )
+    body = fmt(random.choice(REVIEW_REJECTED), conn, name=cleaner["name"], partner=user["name"])
+    bus.notify(cleaner["id"], "review_decided", "SYF ✖ Odrzucone", body)
+    bus.state_changed()
+    return {"status": "rejected"}
 
 
 def request_extension(conn, bus: Bus, user: sqlite3.Row) -> dict:
@@ -542,6 +615,21 @@ def tick(conn, bus: Bus, t: datetime | None = None) -> list[str]:
     t = t or now()
     sent: list[str] = []
     h = household(conn)
+    review = pending_review(conn)
+    if review:
+        # Czekamy na potwierdzenie: nikt nie dostaje przypomnień o kuwecie, za to sprawdzający o potwierdzeniu.
+        reviewer = partner_of(conn, review["user_id"])
+        cleaner = conn.execute("SELECT * FROM users WHERE id = ?", (review["user_id"],)).fetchone()
+        last = datetime.fromisoformat(h["review_reminded_at"]) if h["review_reminded_at"] else None
+        if reviewer and cleaner:
+            interval = timedelta(minutes=max(5, reviewer["notify_interval_min"]))
+            if schedule.can_notify(settings_of(reviewer), t, TZ) and (last is None or t - last >= interval - timedelta(seconds=30)):
+                bus.notify(reviewer["id"], "review", "Potwierdź kuwetę",
+                           f"{cleaner['name']} czeka, aż potwierdzisz, że kuweta lśni. Zajrzyj i kliknij.",
+                           ttl_min=20, cleaning_id=review["id"])
+                conn.execute("UPDATE household SET review_reminded_at = ? WHERE id = 1", (t.isoformat(),))
+                sent.append(f"review:{reviewer['id']}")
+        return sent
     if not h["assignee_id"] or not h["due_date"]:
         return sent
     today = t.date()
@@ -612,7 +700,7 @@ def state(conn, user: sqlite3.Row) -> dict:
         due = date.fromisoformat(h["due_date"])
         assignee = by_id.get(h["assignee_id"])
         nxt = partner_of(conn, h["assignee_id"]) or assignee
-        last = conn.execute("SELECT at FROM cleanings ORDER BY id DESC LIMIT 1").fetchone()
+        last = conn.execute("SELECT at FROM cleanings WHERE status = 'approved' ORDER BY id DESC LIMIT 1").fetchone()
         duty = {
             "assignee_id": h["assignee_id"],
             "assignee_name": assignee["name"] if assignee else "?",
@@ -626,6 +714,17 @@ def state(conn, user: sqlite3.Row) -> dict:
             "next_in_days": max((due - today).days, 0) + h["interval_days"],
             "last_cleaned_at": last["at"] if last else None,
             "reminders_today": h["reminders_today"] if h["reminders_day"] == today.isoformat() else 0,
+        }
+
+    review = pending_review(conn)
+    review_out = None
+    if review:
+        review_out = {
+            "id": review["id"],
+            "cleaner_id": review["user_id"],
+            "cleaner_name": by_id[review["user_id"]]["name"] if review["user_id"] in by_id else "?",
+            "at": review["at"],
+            "mine": review["user_id"] == user["id"],
         }
 
     ext = pending_extension(conn)
@@ -649,6 +748,7 @@ def state(conn, user: sqlite3.Row) -> dict:
         "partner": user_public(partner),
         "duty": duty,
         "pending_extension": pending,
+        "pending_review": review_out,
         "streaks": [
             {"user_id": u["id"], "name": u["name"], "current": streak(conn, u["id"]), "best": best_streak(conn, u["id"])}
             for u in by_id.values()
@@ -666,7 +766,9 @@ def state(conn, user: sqlite3.Row) -> dict:
 
 
 def ranking(conn, month: str) -> dict:
-    rows = conn.execute("SELECT * FROM cleanings WHERE substr(at, 1, 7) = ? ORDER BY id DESC", (month,)).fetchall()
+    rows = conn.execute(
+        "SELECT * FROM cleanings WHERE substr(at, 1, 7) = ? AND status = 'approved' ORDER BY id DESC", (month,)
+    ).fetchall()
     exts = conn.execute(
         "SELECT requester_id, status FROM extensions WHERE substr(created_at, 1, 7) = ?", (month,)
     ).fetchall()
