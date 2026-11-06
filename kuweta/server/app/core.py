@@ -739,7 +739,12 @@ def state(conn, user: sqlite3.Row) -> dict:
         }
 
     upcoming = [
-        {"date": (today + timedelta(days=i)).isoformat(), "code": schedule.shift_code(s, today + timedelta(days=i))}
+        {
+            "date": (today + timedelta(days=i)).isoformat(),
+            "code": schedule.shift_code(s, today + timedelta(days=i)),
+            # Pełna doba dla każdego dnia, żeby w aplikacji dało się przewijać dni.
+            "timeline": schedule.day_timeline(s, today + timedelta(days=i), TZ),
+        }
         for i in range(14)
     ]
     return {

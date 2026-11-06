@@ -55,7 +55,7 @@ data class Today(
 )
 
 @Serializable
-data class DayCode(val date: String, val code: String)
+data class DayCode(val date: String, val code: String, val timeline: List<Segment> = emptyList())
 
 @Serializable
 data class AppState(

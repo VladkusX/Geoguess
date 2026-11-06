@@ -8,6 +8,18 @@ import android.net.Uri
 import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.width
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.pointer.pointerInput
+import pl.kuweta.patrol.data.DayCode
+import pl.kuweta.patrol.data.Segment
+import java.time.LocalTime
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -257,23 +269,115 @@ private fun ConnectionDot(connected: Boolean) {
 
 @Composable
 private fun TodayCard(s: AppState) {
-    val today = LocalDate.now()
-    val dayName = today.dayOfWeek.getDisplayName(TextStyle.FULL, Locale("pl"))
+    val days = s.upcoming.ifEmpty { listOf(DayCode(LocalDate.now().toString(), s.today.code, s.today.timeline)) }
+    var selected by remember { mutableIntStateOf(0) }
+    val index = selected.coerceIn(0, days.lastIndex)
+    val day = days[index]
+    val date = LocalDate.parse(day.date)
+    val timeline = if (index == 0) s.today.timeline else day.timeline
+    val dayName = date.dayOfWeek.getDisplayName(TextStyle.FULL, Locale("pl"))
     val duty = s.duty
-    val windowToday = duty != null && duty.isMe && duty.daysLeft <= 0
-    BrutalCard {
-        Text("Dziś · $dayName · ${SHIFT_NAMES[s.today.code] ?: s.today.code}", fontWeight = FontWeight.Bold)
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .height(18.dp)
-                .border(2.dp, Ink)
-        ) {
-            s.today.timeline.forEach { seg ->
+    // Okno kuwety: mój dyżur i dzień terminu albo później.
+    val window = duty != null && duty.isMe && index >= duty.daysLeft
+    var drag by remember { mutableFloatStateOf(0f) }
+
+    BrutalCard(
+        Modifier.pointerInput(days.size) {
+            detectHorizontalDragGestures(
+                onDragStart = { drag = 0f },
+                onDragEnd = {
+                    val step = 60.dp.toPx()
+                    // Tu nie używamy `index`, bo lambda zapamiętuje go z pierwszego rysowania.
+                    val last = days.size - 1
+                    if (drag <= -step) selected = (selected + 1).coerceAtMost(last)
+                    if (drag >= step) selected = (selected - 1).coerceAtLeast(0)
+                    drag = 0f
+                },
+            ) { change, amount ->
+                change.consume()
+                drag += amount
+            }
+        }
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "‹",
+                style = MaterialTheme.typography.titleLarge,
+                color = if (index > 0) Ink else Grey,
+                modifier = Modifier
+                    .clickable(enabled = index > 0) { selected = index - 1 }
+                    .padding(horizontal = 6.dp),
+            )
+            val label = when (index) {
+                0 -> "Dziś"
+                1 -> "Jutro"
+                else -> "%d.%02d".format(date.dayOfMonth, date.monthValue)
+            }
+            Text(
+                "$label · $dayName · ${SHIFT_NAMES[day.code] ?: day.code}",
+                fontWeight = FontWeight.Bold,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                "›",
+                style = MaterialTheme.typography.titleLarge,
+                color = if (index < days.lastIndex) Ink else Grey,
+                modifier = Modifier
+                    .clickable(enabled = index < days.lastIndex) { selected = index + 1 }
+                    .padding(horizontal = 6.dp),
+            )
+        }
+        DayBar(timeline, window, nowFraction = if (index == 0) nowFraction() else null)
+        HourScale()
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Legend(Grey, "sen/cisza")
+            Legend(Ink, "robota")
+            Legend(if (window) Orange else Paper, if (window) "okno kuwety" else "wolne")
+        }
+        Text(
+            when {
+                index > 0 -> "Przesuń w lewo/prawo albo kliknij dzień niżej."
+                s.today.canNotifyNow -> "Teraz można cię męczyć."
+                else -> "Teraz masz spokój od powiadomień."
+            },
+            style = MaterialTheme.typography.bodySmall,
+        )
+        Spacer(Modifier.height(2.dp))
+        days.chunked(7).forEachIndexed { row, week ->
+            Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                week.forEachIndexed { col, d ->
+                    val i = row * 7 + col
+                    DayChip(d, selected = i == index, onClick = { selected = i }, modifier = Modifier.weight(1f))
+                }
+                repeat(7 - week.size) { Spacer(Modifier.weight(1f)) }
+            }
+        }
+    }
+}
+
+private fun nowFraction(): Float {
+    val t = LocalTime.now()
+    return (t.hour * 60 + t.minute) / (24f * 60f)
+}
+
+/** Pasek doby z liniami co 2 godziny i (dla dziś) znacznikiem aktualnej godziny. */
+@Composable
+private fun DayBar(timeline: List<Segment>, window: Boolean, nowFraction: Float?) {
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .height(26.dp)
+            .border(2.dp, Ink)
+    ) {
+        Row(Modifier.matchParentSize()) {
+            timeline.forEach { seg ->
                 val color = when (seg.kind) {
                     "work" -> Ink
                     "sleep" -> Grey
-                    else -> if (windowToday) Orange else Paper
+                    else -> if (window) Orange else Paper
                 }
                 Box(
                     Modifier
@@ -283,42 +387,66 @@ private fun TodayCard(s: AppState) {
                 )
             }
         }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            listOf("0", "6", "12", "18", "24").forEach { Text(it, style = MaterialTheme.typography.bodySmall) }
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Legend(Grey, "sen/cisza")
-            Legend(Ink, "robota")
-            Legend(if (windowToday) Orange else Paper, if (windowToday) "okno kuwety" else "wolne")
-        }
-        Text(
-            if (s.today.canNotifyNow) "Teraz można cię męczyć." else "Teraz masz spokój od powiadomień.",
-            style = MaterialTheme.typography.bodySmall,
-        )
-        Spacer(Modifier.height(2.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-            s.upcoming.take(10).forEach { day ->
-                val date = LocalDate.parse(day.date)
-                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale("pl")).take(2),
-                        style = MaterialTheme.typography.bodySmall.copy(fontSize = bsp(9)),
-                    )
-                    val bg = SHIFT_COLORS[day.code] ?: Paper
-                    Text(
-                        if (day.code == "-") "·" else day.code,
-                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
-                        color = if (bg == Ink) Yellow else Ink,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(bg)
-                            .border(1.5.dp, Ink)
-                            .padding(vertical = 2.dp),
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                    )
-                }
+        Canvas(Modifier.matchParentSize()) {
+            for (h in 2 until 24 step 2) {
+                val x = size.width * h / 24f
+                drawLine(Color(0x88888888), Offset(x, 0f), Offset(x, size.height), strokeWidth = 1.dp.toPx())
+            }
+            nowFraction?.let {
+                val x = size.width * it
+                drawLine(Color(0xFFFF5A36), Offset(x, 0f), Offset(x, size.height), strokeWidth = 3.dp.toPx())
             }
         }
+    }
+}
+
+/** Podziałka 0, 2, 4 ... 24 ustawiona dokładnie pod liniami paska. */
+@Composable
+private fun HourScale() {
+    BoxWithConstraints(Modifier.fillMaxWidth().height(14.dp)) {
+        val labelWidth = 22.dp
+        for (h in 0..24 step 2) {
+            val x = (maxWidth * (h / 24f) - labelWidth / 2).coerceIn(0.dp, maxWidth - labelWidth)
+            Text(
+                "$h",
+                style = MaterialTheme.typography.bodySmall.copy(fontSize = bsp(9)),
+                textAlign = when (h) {
+                    0 -> androidx.compose.ui.text.style.TextAlign.Start
+                    24 -> androidx.compose.ui.text.style.TextAlign.End
+                    else -> androidx.compose.ui.text.style.TextAlign.Center
+                },
+                modifier = Modifier
+                    .width(labelWidth)
+                    .offset(x = x),
+            )
+        }
+    }
+}
+
+@Composable
+private fun DayChip(day: DayCode, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val date = LocalDate.parse(day.date)
+    Column(modifier.clickable(onClick = onClick), horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale("pl")).take(2) + " " + date.dayOfMonth,
+            style = MaterialTheme.typography.bodySmall.copy(
+                fontSize = bsp(9),
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+            ),
+            maxLines = 1,
+        )
+        val bg = SHIFT_COLORS[day.code] ?: Paper
+        Text(
+            if (day.code == "-") "·" else day.code,
+            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+            color = if (bg == Ink) Yellow else Ink,
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(bg)
+                .border(if (selected) 3.dp else 1.5.dp, if (selected) Orange else Ink)
+                .padding(vertical = 2.dp),
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+        )
     }
 }
 

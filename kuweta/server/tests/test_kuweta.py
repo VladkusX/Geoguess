@@ -104,7 +104,7 @@ def test_reminders_every_interval(env):
 
 def test_clean_rotates_and_notifies(env):
     conn, bus, ua, ub = env
-    conn.execute("UPDATE household SET due_date='2026-11-02'")
+    conn.execute("UPDATE household SET due_date=?", (core.now().date().isoformat(),))
     res = core.clean(conn, bus, ua)
     assert res["status"] == "pending"
     assert core.household(conn)["assignee_id"] == ua["id"]  # dyżur czeka na potwierdzenie
@@ -270,3 +270,10 @@ def test_review_reminders_while_waiting(env):
     assert core.tick(conn, bus, at(2026, 11, 2, 12, 10)) == []
     assert core.tick(conn, bus, at(2026, 11, 2, 12, 30)) == [f"review:{ub['id']}"]
     assert core.state(conn, ub)["pending_review"]["id"] == res["cleaning_id"]
+
+
+def test_upcoming_days_have_timelines(env):
+    conn, bus, ua, ub = env
+    days = core.state(conn, ua)["upcoming"]
+    assert len(days) == 14
+    assert all(sum(seg["minutes"] for seg in d["timeline"]) == 24 * 60 for d in days)
