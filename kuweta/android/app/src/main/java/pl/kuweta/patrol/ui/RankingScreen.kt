@@ -32,7 +32,7 @@ import java.time.format.TextStyle
 import java.util.Locale
 
 @Composable
-fun RankingScreen() {
+fun RankingScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     var month by remember { mutableStateOf(YearMonth.now()) }
     var data by remember { mutableStateOf<Ranking?>(null) }
@@ -54,6 +54,7 @@ fun RankingScreen() {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
+        BrutalButton("← Wróć", onBack, bg = Paper, fg = Ink, small = true)
         Sticker("Ranking miesiąca")
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Chip("◀", false, { month = month.minusMonths(1) })

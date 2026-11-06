@@ -56,12 +56,13 @@ Aplikacja na Androida dla dwóch osób, która wulgarnie przypomina o sprzątani
   - Admin: pięciobrygadówka `R R P P N N - - - -`.
   - Druga osoba: pn–pt, rotacja tygodniowa `N×5 - - P×5 - - R×5 - -`.
   - Godziny zmian 6–14, 14–22, 22–6.
+- **Ekran Start:** ma się mieścić na jednym ekranie bez przewijania (POCO F7 i Samsung drugiej osoby). Ranking otwiera się przyciskiem pod „Test powiadomienia”/„Rozłącz”, nie ma go na dolnym pasku. Karta „Dziś”: podziałka co 2 h, przesuwanie palcem po 14 dniach (serwer wysyła `timeline` dla każdego dnia w `upcoming`).
 - **Wygląd:** tylko Brutal (żółto-czarny). Inne motywy usunięte na prośbę użytkownika (kuweta-19), nie przywracaj. Kolory to stałe `Yellow`/`Ink`/`Paper`/... w `Theme.kt`, rozmiary czcionek przez `dsp()`/`bsp()`.
 
 ## Użytkownicy i sprzęt
 
 - **Admin:** Vlad, telefon POCO F7 (HyperOS): Autostart, bateria „Bez ograniczeń”, kłódka w ostatnich.
-- **Druga osoba:** Samsung S21 Ultra: „Aplikacje nigdy nieusypiane”.
+- **Druga osoba:** Samsung S24 Ultra (wcześniej zapisane jako S21): „Aplikacje nigdy nieusypiane”.
 - Mają koty, imiona wpisuje admin w aplikacji (np. „Beżi”).
 
 ## Zasady użytkownika (ważne)

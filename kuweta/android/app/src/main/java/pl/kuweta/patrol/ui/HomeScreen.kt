@@ -67,7 +67,7 @@ import java.time.format.TextStyle
 import java.util.Locale
 
 @Composable
-fun HomeScreen(onLogout: () -> Unit) {
+fun HomeScreen(onLogout: () -> Unit, onRanking: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val state by Repo.state.collectAsState()
@@ -97,9 +97,10 @@ fun HomeScreen(onLogout: () -> Unit) {
     Column(
         Modifier
             .fillMaxSize()
+            // Przewijanie zostaje tylko jako zabezpieczenie (np. karta baterii). Normalnie wszystko ma się zmieścić.
             .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(9.dp),
     ) {
         val s = state
         if (s == null) {
@@ -120,7 +121,10 @@ fun HomeScreen(onLogout: () -> Unit) {
             ConnectionDot(connected)
         }
 
-        Text(headline(s).uppercase(), style = MaterialTheme.typography.headlineLarge)
+        Text(
+            headline(s).uppercase(),
+            style = MaterialTheme.typography.headlineLarge.copy(fontSize = dsp(28), lineHeight = dsp(30)),
+        )
 
         if (duty != null && s.cats.isNotEmpty() && duty.daysLeft <= 0) {
             Text(catsLine(s.cats, duty.daysLeft), fontWeight = FontWeight.Bold)
@@ -194,6 +198,7 @@ fun HomeScreen(onLogout: () -> Unit) {
             BrutalButton("Test powiadomienia", { act({ it.testNotify() }, "Wysłane. Powinno przyjść za sekundę.") }, Modifier.weight(1f), bg = Paper, fg = Ink, small = true, enabled = !busy)
             BrutalButton("Rozłącz", { confirmLogout = true }, Modifier.weight(1f), bg = Paper, fg = Ink, small = true)
         }
+        BrutalButton("Ranking", onRanking, bg = Paper, fg = Ink, small = true)
     }
 
     if (confirmClean) {
@@ -339,21 +344,22 @@ private fun TodayCard(s: AppState) {
         }
         Text(
             when {
-                index > 0 -> "Przesuń w lewo/prawo albo kliknij dzień niżej."
+                index > 0 -> "Przesuń palcem, żeby zmienić dzień."
                 s.today.canNotifyNow -> "Teraz można cię męczyć."
                 else -> "Teraz masz spokój od powiadomień."
             },
             style = MaterialTheme.typography.bodySmall,
         )
         Spacer(Modifier.height(2.dp))
-        days.chunked(7).forEachIndexed { row, week ->
-            Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                week.forEachIndexed { col, d ->
-                    val i = row * 7 + col
-                    DayChip(d, selected = i == index, onClick = { selected = i }, modifier = Modifier.weight(1f))
-                }
-                repeat(7 - week.size) { Spacer(Modifier.weight(1f)) }
+        // Jeden rząd 7 dni: tydzień, w którym jest wybrany dzień (oszczędza miejsce na ekranie).
+        val weekStart = index / 7 * 7
+        Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+            val week = days.drop(weekStart).take(7)
+            week.forEachIndexed { col, d ->
+                val i = weekStart + col
+                DayChip(d, selected = i == index, onClick = { selected = i }, modifier = Modifier.weight(1f))
             }
+            repeat(7 - week.size) { Spacer(Modifier.weight(1f)) }
         }
     }
 }
@@ -463,40 +469,36 @@ private fun Legend(color: Color, label: String) {
     }
 }
 
-/** Element z wersji "Arcade": streak bez przedłużeń i kolejny gracz. */
+/** Tablica wyników w wersji kompaktowej: serie i kto gra teraz/następny. */
 @Composable
 private fun ArcadeCard(s: AppState) {
     val duty = s.duty
     BrutalCard(bg = Ink) {
-        Text("TABLICA WYNIKÓW", style = MaterialTheme.typography.titleMedium, color = Yellow)
+        Text("TABLICA WYNIKÓW", style = MaterialTheme.typography.titleMedium.copy(fontSize = dsp(14)), color = Yellow)
         s.streaks.forEach { st ->
             val me = st.userId == s.me.id
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     (if (me) "▶ " else "  ") + st.name.uppercase(),
                     color = Paper, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f),
+                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                 )
                 Text("🔥 ${st.current}", color = Yellow, fontWeight = FontWeight.Bold)
-                Text("  rekord ${st.best}", color = Grey, style = MaterialTheme.typography.bodySmall)
+                Text("  rek. ${st.best}", color = Grey, style = MaterialTheme.typography.bodySmall)
             }
         }
-        Text("streak = ogarnięte na czas, bez przedłużania", color = Grey, style = MaterialTheme.typography.bodySmall)
         if (duty != null) {
-            Spacer(Modifier.height(4.dp))
             val d = duty.daysLeft
             val now = when {
                 d > 0 -> "za $d ${daysWord(d)}"
                 d == 0 -> "dziś"
-                else -> "spóźnienie ${-d} ${daysWord(-d)}"
+                else -> "spóźn. ${-d} ${daysWord(-d)}"
             }
-            Text("TERAZ GRA: ${duty.assigneeName.uppercase()} · $now", color = Mint, fontWeight = FontWeight.Bold)
             Text(
-                "NASTĘPNY GRACZ: ${duty.nextName.uppercase()} · za ${duty.nextInDays} ${daysWord(duty.nextInDays)}",
-                color = Paper, fontWeight = FontWeight.Bold,
+                "${duty.assigneeName.uppercase()} $now → ${duty.nextName.uppercase()} za ${duty.nextInDays} ${daysWord(duty.nextInDays)}",
+                color = Mint, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodySmall,
+                maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
             )
-            if (duty.remindersToday > 0) {
-                Text("Przypomnień dziś: ${duty.remindersToday}", color = Grey, style = MaterialTheme.typography.bodySmall)
-            }
         }
     }
 }

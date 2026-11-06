@@ -5,6 +5,7 @@ import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -107,13 +108,15 @@ private fun MainScaffold(onLogout: () -> Unit) {
         scope.launch { Repo.refresh(context) }
     }
 
-    val tabs = Tab.entries.filter { it != Tab.ADMIN || state?.me?.isAdmin == true }
+    // Ranking otwiera się przyciskiem na ekranie Start, nie ma go na dolnym pasku.
+    val tabs = Tab.entries.filter { it != Tab.RANKING && (it != Tab.ADMIN || state?.me?.isAdmin == true) }
+    BackHandler(enabled = tab == Tab.RANKING) { tab = Tab.START }
     Column(Modifier.fillMaxSize()) {
         Box(Modifier.weight(1f)) {
             when (tab) {
-                Tab.START -> HomeScreen(onLogout = onLogout)
+                Tab.START -> HomeScreen(onLogout = onLogout, onRanking = { tab = Tab.RANKING })
                 Tab.SCHEDULE -> ScheduleScreen()
-                Tab.RANKING -> RankingScreen()
+                Tab.RANKING -> RankingScreen(onBack = { tab = Tab.START })
                 Tab.ADMIN -> AdminScreen()
             }
         }
@@ -126,7 +129,7 @@ private fun MainScaffold(onLogout: () -> Unit) {
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             tabs.forEach { t ->
-                val selected = t == tab
+                val selected = t == tab || (t == Tab.START && tab == Tab.RANKING)
                 Text(
                     t.label.uppercase(),
                     style = MaterialTheme.typography.labelLarge.copy(fontSize = dsp(12)),

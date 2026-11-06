@@ -79,7 +79,7 @@ Parowanie:
 Aplikacja trzyma stałe połączenie z serwerem (cicha ikonka kota na pasku), dlatego system nie może jej ubijać.
 
 - **POCO F7 / Xiaomi (HyperOS)**: Ustawienia aplikacji → Oszczędzanie baterii → **Bez ograniczeń**, włącz **Autostart**, w ostatnich aplikacjach przytrzymaj Kuwetę i daj **kłódkę**.
-- **Samsung S21 Ultra**: Ustawienia → Bateria → Limity użycia w tle → **Aplikacje nigdy nieusypiane** → dodaj Kuweta Patrol.
+- **Samsung (S24 Ultra)**: Ustawienia → Bateria → Limity użycia w tle → **Aplikacje nigdy nieusypiane** → dodaj Kuweta Patrol.
 
 Na ekranie głównym aplikacji jest karta z przyciskami do tych ustawień.
 
