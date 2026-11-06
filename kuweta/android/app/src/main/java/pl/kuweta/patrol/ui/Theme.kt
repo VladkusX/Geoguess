@@ -1,6 +1,13 @@
 package pl.kuweta.patrol.ui
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -163,6 +170,7 @@ fun BrutalField(
     modifier: Modifier = Modifier,
     number: Boolean = false,
     singleLine: Boolean = true,
+    decimal: Boolean = false,
 ) {
     OutlinedTextField(
         value = value,
@@ -171,7 +179,11 @@ fun BrutalField(
         singleLine = singleLine,
         shape = RectangleShape,
         textStyle = MaterialTheme.typography.bodyLarge,
-        keyboardOptions = if (number) KeyboardOptions(keyboardType = KeyboardType.Number) else KeyboardOptions.Default,
+        keyboardOptions = when {
+            decimal -> KeyboardOptions(keyboardType = KeyboardType.Decimal)
+            number -> KeyboardOptions(keyboardType = KeyboardType.Number)
+            else -> KeyboardOptions.Default
+        },
         colors = OutlinedTextFieldDefaults.colors(
             focusedBorderColor = Ink,
             unfocusedBorderColor = Ink,
@@ -202,6 +214,20 @@ fun Chip(text: String, selected: Boolean, onClick: () -> Unit, modifier: Modifie
             .clickable(onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 6.dp),
     )
+}
+
+/** Logo Cat&Cash: ta sama grafika co ikona aplikacji. */
+@Composable
+fun Brand(modifier: Modifier = Modifier) {
+    Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        val shape = RoundedCornerShape(8.dp)
+        Image(
+            painterResource(R.drawable.ic_cnc),
+            contentDescription = null,
+            modifier = Modifier.size(34.dp).clip(shape).border(2.dp, Ink, shape),
+        )
+        Text("CAT&CASH", style = MaterialTheme.typography.titleLarge.copy(fontSize = dsp(20)))
+    }
 }
 
 fun daysWord(n: Int): String = if (n == 1) "dzień" else "dni"

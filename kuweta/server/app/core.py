@@ -107,6 +107,9 @@ def connect(path: str) -> sqlite3.Connection:
     conn.executescript(SCHEMA)
     conn.execute("INSERT OR IGNORE INTO household (id) VALUES (1)")
     migrate(conn)
+    from . import money  # money importuje core, więc tutaj, a nie na górze pliku
+
+    money.migrate(conn)
     return conn
 
 

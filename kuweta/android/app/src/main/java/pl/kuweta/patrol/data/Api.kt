@@ -90,6 +90,34 @@ class Api(private val prefs: Prefs) {
         call("POST", "/api/cleanings/$id/review", buildJsonObject { put("approve", approve) }.toString())
     }
 
+    suspend fun moneyTransfer() { call("POST", "/api/money/transfer") }
+
+    suspend fun moneyConfirm(transferId: Int) { call("POST", "/api/money/transfer/$transferId/confirm") }
+
+    suspend fun moneyExpense(amountCents: Long, category: String, note: String) {
+        val body = buildJsonObject { put("amount_cents", amountCents); put("category", category); put("note", note) }
+        call("POST", "/api/money/expenses", body.toString())
+    }
+
+    suspend fun moneyDeleteExpense(id: Int) { call("DELETE", "/api/money/expenses/$id") }
+
+    suspend fun moneyCategories(names: List<String>) {
+        val body = buildJsonObject { putJsonArray("categories") { names.forEach { add(it) } } }
+        call("PUT", "/api/money/categories", body.toString())
+    }
+
+    suspend fun moneyPropose(kind: String, valueCents: Long) {
+        call("POST", "/api/money/proposals", buildJsonObject { put("kind", kind); put("value_cents", valueCents) }.toString())
+    }
+
+    suspend fun moneyDecide(id: Int, approve: Boolean) {
+        call("POST", "/api/money/proposals/$id/decide", buildJsonObject { put("approve", approve) }.toString())
+    }
+
+    suspend fun moneyRoles(payerId: Int) {
+        call("PUT", "/api/admin/money", buildJsonObject { put("payer_id", payerId) }.toString())
+    }
+
     suspend fun testNotify() { call("POST", "/api/test-notify") }
 
     suspend fun schedule(): ScheduleSettings = json.decodeFromString(call("GET", "/api/schedule"))

@@ -67,3 +67,28 @@ def test_missed_events_catch_up(tmp_path):
     cid = c.get("/api/state", headers=ha).json()["pending_review"]["id"]
     assert c.post(f"/api/cleanings/{cid}/review", headers=hb, json={"approve": True}).status_code == 403
     assert c.post(f"/api/cleanings/{cid}/review", headers=ha, json={"approve": True}).json()["status"] == "approved"
+
+
+def test_money_endpoints(tmp_path):
+    os.environ["KUWETA_DB"] = str(tmp_path / "api.db")
+    os.environ["KUWETA_ADMIN_CODE"] = "tajne"
+    main = importlib.reload(importlib.import_module("app.main"))
+    c = TestClient(main.app)
+    ta = c.post("/api/register", json={"name": "Vlad", "code": "tajne"}).json()["token"]
+    ha = {"Authorization": f"Bearer {ta}"}
+    code = c.post("/api/admin/pair-code", headers=ha).json()["code"]
+    r = c.post("/api/register", json={"name": "Heniuu", "code": code}).json()
+    hb = {"Authorization": f"Bearer {r['token']}"}
+
+    assert c.get("/api/state", headers=ha).json()["money"]["configured"] is False
+    assert c.put("/api/admin/money", headers=hb, json={"payer_id": r["user_id"]}).status_code == 403
+    assert c.put("/api/admin/money", headers=ha, json={"payer_id": r["user_id"]}).json()["role"] == "receiver"
+    pid = c.post("/api/money/proposals", headers=hb, json={"kind": "amount", "value_cents": 30000}).json()["id"]
+    assert c.post(f"/api/money/proposals/{pid}/decide", headers=ha, json={"approve": True}).status_code == 200
+    assert c.post("/api/money/transfer", headers=ha).status_code == 403
+    tid = c.post("/api/money/transfer", headers=hb).json()["transfer_id"]
+    assert c.post(f"/api/money/transfer/{tid}/confirm", headers=ha).json()["balance_cents"] == 30000
+    assert c.post("/api/money/expenses", headers=ha, json={"amount_cents": 1500, "category": "Żwirek"}).status_code == 200
+    m = c.get("/api/state", headers=hb).json()["money"]
+    assert m["balance_cents"] == 28500 and m["expenses"][0]["category"] == "Żwirek"
+    assert c.put("/api/money/categories", headers=ha, json={"categories": ["Żarcie", "Weterynarz"]}).json()["categories"] == ["Żarcie", "Weterynarz"]

@@ -26,6 +26,10 @@ class ActionReceiver : BroadcastReceiver() {
         const val REJECT = "pl.kuweta.patrol.REJECT"
         const val SHINY = "pl.kuweta.patrol.SHINY"
         const val DIRTY = "pl.kuweta.patrol.DIRTY"
+        const val MONEY_SENT = "pl.kuweta.patrol.MONEY_SENT"
+        const val MONEY_OK = "pl.kuweta.patrol.MONEY_OK"
+        const val MONEY_APPROVE = "pl.kuweta.patrol.MONEY_APPROVE"
+        const val MONEY_REJECT = "pl.kuweta.patrol.MONEY_REJECT"
         const val EXTRA_EXT_ID = "ext_id"
     }
 
@@ -50,6 +54,19 @@ class ActionReceiver : BroadcastReceiver() {
                     APPROVE, REJECT -> {
                         api.decideExtension(extId, intent.action == APPROVE)
                         Notifier.cancel(app, Notifier.ID_EXT_BASE + extId)
+                    }
+                    MONEY_SENT -> {
+                        api.moneyTransfer()
+                        Notifier.cancel(app, Notifier.ID_MONEY)
+                        Notifier.simple(app, "Zgłoszone 💶", "Druga osoba sprawdzi konto i potwierdzi.", Notifier.ID_INFO)
+                    }
+                    MONEY_OK -> {
+                        api.moneyConfirm(extId)
+                        Notifier.cancel(app, Notifier.ID_MONEY + 1)
+                    }
+                    MONEY_APPROVE, MONEY_REJECT -> {
+                        api.moneyDecide(extId, intent.action == MONEY_APPROVE)
+                        Notifier.cancel(app, Notifier.ID_MONEY + 2 + extId)
                     }
                     SHINY, DIRTY -> {
                         api.reviewCleaning(extId, intent.action == SHINY)

@@ -89,7 +89,7 @@ private fun Root() {
     }
 }
 
-private enum class Tab(val label: String) { START("Start"), SCHEDULE("Grafik"), RANKING("Ranking"), ADMIN("Admin") }
+private enum class Tab(val label: String) { START("Start"), SCHEDULE("Grafik"), MONEY("Domowe"), RANKING("Ranking"), ADMIN("Admin") }
 
 @Composable
 private fun MainScaffold(onLogout: () -> Unit) {
@@ -116,6 +116,7 @@ private fun MainScaffold(onLogout: () -> Unit) {
             when (tab) {
                 Tab.START -> HomeScreen(onLogout = onLogout, onRanking = { tab = Tab.RANKING })
                 Tab.SCHEDULE -> ScheduleScreen()
+                Tab.MONEY -> MoneyScreen()
                 Tab.RANKING -> RankingScreen(onBack = { tab = Tab.START })
                 Tab.ADMIN -> AdminScreen()
             }
@@ -166,7 +167,7 @@ private fun SetupScreen(onDone: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         Spacer(Modifier.height(12.dp))
-        Sticker("Kuweta Patrol")
+        Brand()
         Text("Parowanie\ntelefonu".uppercase(), style = MaterialTheme.typography.headlineLarge)
         BrutalCard {
             Text("Admin wpisuje swój kod admina z pliku .env na serwerze. Druga osoba wpisuje 6-znakowy kod, który admin wygeneruje w zakładce Admin.")

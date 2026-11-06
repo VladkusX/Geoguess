@@ -12,7 +12,7 @@ from fastapi import Depends, FastAPI, Header, Request
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
-from . import core, schedule
+from . import core, money, schedule
 
 log = logging.getLogger("kuweta")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -37,7 +37,7 @@ bus.listeners.append(_wake)
 async def scheduler() -> None:
     while True:
         try:
-            for item in core.tick(conn, bus):
+            for item in core.tick(conn, bus) + money.tick(conn, bus):
                 log.info("wysłano %s", item)
             bus.cleanup()
         except Exception:
@@ -120,6 +120,25 @@ class SoundSlotIn(BaseModel):
     sound_id: int | None = None
 
 
+class ExpenseIn(BaseModel):
+    amount_cents: int
+    category: str = ""
+    note: str = ""
+
+
+class ProposalIn(BaseModel):
+    kind: str
+    value_cents: int
+
+
+class CategoriesIn(BaseModel):
+    categories: list[str]
+
+
+class MoneyRolesIn(BaseModel):
+    payer_id: int
+
+
 class MessageIn(BaseModel):
     category: str
     level: int = 0
@@ -140,7 +159,7 @@ async def register(body: RegisterIn):
 
 @app.get("/api/state")
 async def get_state(user=Depends(current_user)):
-    return core.state(conn, user)
+    return {**core.state(conn, user), "money": money.state(conn, user)}
 
 
 @app.post("/api/clean")
@@ -151,6 +170,49 @@ async def clean(user=Depends(current_user)):
 @app.post("/api/cleanings/{cleaning_id}/review")
 async def review_cleaning(cleaning_id: int, body: DecideIn, user=Depends(current_user)):
     return core.review_cleaning(conn, bus, user, cleaning_id, body.approve)
+
+
+# ---------- domowe (hajs) ----------
+
+@app.post("/api/money/transfer")
+async def money_transfer(user=Depends(current_user)):
+    return money.send_transfer(conn, bus, user)
+
+
+@app.post("/api/money/transfer/{transfer_id}/confirm")
+async def money_confirm(transfer_id: int, user=Depends(current_user)):
+    return money.confirm_transfer(conn, bus, user, transfer_id)
+
+
+@app.post("/api/money/expenses")
+async def money_expense(body: ExpenseIn, user=Depends(current_user)):
+    return money.add_expense(conn, bus, user, body.amount_cents, body.category, body.note)
+
+
+@app.delete("/api/money/expenses/{expense_id}")
+async def money_delete_expense(expense_id: int, user=Depends(current_user)):
+    return money.delete_expense(conn, bus, user, expense_id)
+
+
+@app.put("/api/money/categories")
+async def money_categories(body: CategoriesIn, user=Depends(current_user)):
+    return {"categories": money.set_categories(conn, bus, user, body.categories)}
+
+
+@app.post("/api/money/proposals")
+async def money_propose(body: ProposalIn, user=Depends(current_user)):
+    return money.propose(conn, bus, user, body.kind, body.value_cents)
+
+
+@app.post("/api/money/proposals/{proposal_id}/decide")
+async def money_decide(proposal_id: int, body: DecideIn, user=Depends(current_user)):
+    return money.decide(conn, bus, user, proposal_id, body.approve)
+
+
+@app.put("/api/admin/money")
+async def admin_money(body: MoneyRolesIn, user=Depends(admin_user)):
+    money.set_payer(conn, bus, body.payer_id)
+    return money.state(conn, user)
 
 
 @app.post("/api/extensions")

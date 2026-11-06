@@ -53,7 +53,7 @@
         <receiver
             android:name=".widget.KuwetaWidget"
             android:exported="true"
-            android:label="Kuweta">
+            android:label="CnC">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>

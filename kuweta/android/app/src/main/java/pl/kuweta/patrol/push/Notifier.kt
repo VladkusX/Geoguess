@@ -27,6 +27,7 @@ object Notifier {
     const val ID_EXT_BASE = 200
     const val ID_INFO = 300
     const val ID_REVIEW = 400
+    const val ID_MONEY = 500
     const val ID_ERROR = 900
 
     fun createChannels(context: Context) {
@@ -80,7 +81,7 @@ object Notifier {
     fun serviceNotification(context: Context, connected: Boolean): Notification =
         NotificationCompat.Builder(context, CH_SERVICE)
             .setSmallIcon(R.drawable.ic_stat_cat)
-            .setContentTitle(if (connected) "Kuweta Patrol czuwa" else "Łączenie z serwerem…")
+            .setContentTitle(if (connected) "CnC czuwa" else "Łączenie z serwerem…")
             .setContentText("Przytrzymaj, żeby wyłączyć ten kanał. Przypomnienia dalej będą działać.")
             .setVisibility(NotificationCompat.VISIBILITY_SECRET)
             .setShowWhen(false)
@@ -97,6 +98,9 @@ object Notifier {
             "reminder", "test" -> CH_REMIND to ID_REMINDER
             "ext_request" -> CH_PARTNER to ID_EXT_BASE + (ev.extensionId ?: 0)
             "review" -> CH_PARTNER to ID_REVIEW
+            "money_due" -> CH_REMIND to ID_MONEY
+            "money_sent" -> CH_PARTNER to ID_MONEY + 1
+            "money_proposal" -> CH_PARTNER to ID_MONEY + 2 + (ev.proposalId ?: 0)
             else -> CH_PARTNER to ID_INFO + (ev.kind?.hashCode()?.and(0xff) ?: 0)
         }
         val builder = NotificationCompat.Builder(context, channel)
@@ -119,6 +123,13 @@ object Notifier {
                 val extId = ev.extensionId ?: 0
                 builder.addAction(0, "Zgoda", action(context, ActionReceiver.APPROVE, extId))
                 builder.addAction(0, "Odmowa", action(context, ActionReceiver.REJECT, extId))
+            }
+            "money_due" -> builder.addAction(0, "Przelane 💶", action(context, ActionReceiver.MONEY_SENT))
+            "money_sent" -> builder.addAction(0, "HAJS SIĘ ZGADZA ✔", action(context, ActionReceiver.MONEY_OK, ev.transferId ?: 0))
+            "money_proposal" -> {
+                val id = ev.proposalId ?: 0
+                builder.addAction(0, "Zgoda", action(context, ActionReceiver.MONEY_APPROVE, id))
+                builder.addAction(0, "Odmowa", action(context, ActionReceiver.MONEY_REJECT, id))
             }
             "review" -> {
                 val cleaningId = ev.cleaningId ?: 0

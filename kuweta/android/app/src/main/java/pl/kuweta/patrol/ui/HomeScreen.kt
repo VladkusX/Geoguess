@@ -104,7 +104,7 @@ fun HomeScreen(onLogout: () -> Unit, onRanking: () -> Unit) {
     ) {
         val s = state
         if (s == null) {
-            Sticker("Kuweta Patrol")
+            Brand()
             Text("Ładuję…".uppercase(), style = MaterialTheme.typography.headlineLarge)
             error?.let { Text(it, color = Orange) }
             return@Column
@@ -112,13 +112,14 @@ fun HomeScreen(onLogout: () -> Unit, onRanking: () -> Unit) {
         val duty = s.duty
 
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            when {
-                duty == null -> Sticker("Czekam na drugą osobę", bg = Ink, fg = Yellow)
-                duty.isMe -> Sticker("Twój dyżur")
-                else -> Sticker("Dyżur: ${duty.assigneeName}", bg = Ink, fg = Yellow)
-            }
+            Brand()
             Spacer(Modifier.weight(1f))
             ConnectionDot(connected)
+        }
+        when {
+            duty == null -> Sticker("Czekam na drugą osobę", bg = Ink, fg = Yellow)
+            duty.isMe -> Sticker("Twój dyżur")
+            else -> Sticker("Dyżur: ${duty.assigneeName}", bg = Ink, fg = Yellow)
         }
 
         Text(
@@ -537,7 +538,7 @@ private fun BatteryCard() {
             BrutalButton("Otwórz Autostart", { openXiaomiAutostart(context) }, bg = Paper, fg = Ink, small = true)
         }
         if (samsung) {
-            Text("Samsung: Ustawienia → Bateria → Limity użycia w tle → dodaj Kuweta Patrol do „Aplikacje nigdy nieusypiane”.")
+            Text("Samsung: Ustawienia → Bateria → Limity użycia w tle → dodaj CnC do „Aplikacje nigdy nieusypiane”.")
         }
         BrutalButton("Ustawienia aplikacji", { openAppSettings(context) }, bg = Paper, fg = Ink, small = true)
         if (ignoring) {

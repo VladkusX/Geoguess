@@ -3,4 +3,5 @@
     <color name="ink">#111111</color>
     <color name="orange">#FF5A36</color>
     <color name="white">#FFFFFF</color>
+    <color name="cnc_bg">#FFE14D</color>
 </resources>

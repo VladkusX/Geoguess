@@ -71,6 +71,45 @@ data class AppState(
     @SerialName("max_level") val maxLevel: Int = 4,
     val cats: List<String> = emptyList(),
     val sounds: Map<String, SoundRef?> = emptyMap(),
+    val money: Money? = null,
+)
+
+@Serializable
+data class Money(
+    val configured: Boolean = false,
+    val categories: List<String> = emptyList(),
+    @SerialName("amount_cents") val amountCents: Long = 0,
+    val payer: UserPub? = null,
+    val receiver: UserPub? = null,
+    val role: String = "",
+    @SerialName("balance_cents") val balanceCents: Long = 0,
+    val period: String = "",
+    @SerialName("period_status") val periodStatus: String = "",
+    @SerialName("due_date") val dueDate: String = "",
+    @SerialName("transfer_id") val transferId: Int? = null,
+    @SerialName("transfer_cents") val transferCents: Long = 0,
+    @SerialName("spent_month_cents") val spentMonthCents: Long = 0,
+    val expenses: List<Expense> = emptyList(),
+    val proposals: List<MoneyProposal> = emptyList(),
+)
+
+@Serializable
+data class Expense(
+    val id: Int,
+    @SerialName("amount_cents") val amountCents: Long,
+    val category: String = "",
+    val note: String = "",
+    val at: String,
+    @SerialName("user_name") val userName: String = "",
+)
+
+@Serializable
+data class MoneyProposal(
+    val id: Int,
+    val kind: String,
+    @SerialName("value_cents") val valueCents: Long,
+    @SerialName("proposer_name") val proposerName: String,
+    val mine: Boolean,
 )
 
 @Serializable
@@ -164,6 +203,8 @@ data class PushEvent(
     val body: String? = null,
     @SerialName("extension_id") val extensionId: Int? = null,
     @SerialName("cleaning_id") val cleaningId: Int? = null,
+    @SerialName("transfer_id") val transferId: Int? = null,
+    @SerialName("proposal_id") val proposalId: Int? = null,
     val level: Int? = null,
 )
 

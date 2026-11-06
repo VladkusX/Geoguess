@@ -1,4 +1,4 @@
-# Kuweta Patrol: start dla nowej sesji
+# Kuweta Patrol (CnC, Cat&Cash): start dla nowej sesji
 
 Przeczytaj w całości przed pierwszą zmianą. Szczegóły dla użytkownika są w `kuweta/README.md`.
 
@@ -25,7 +25,7 @@ Aplikacja na Androida dla dwóch osób, która wulgarnie przypomina o sprzątani
 - Ten sam klucz oznacza zwykłą aktualizację: instalacja na starą wersję, bez odinstalowania i bez parowania.
 - GitHub sortuje release'y tekstowo (`kuweta-9` nad `kuweta-16`). Użytkownikowi zawsze podawaj bezpośredni link do najwyższego numeru.
 - Po pushu sprawdź wynik runu (narzędzia `mcp__github__actions_*`, logi przez `get_job_logs`). Dopiero potem dawaj link.
-- Lokalne testy serwera: `cd kuweta/server && pip install -r requirements.txt pytest httpx && python -m pytest -q tests` (ostatnio 25/25).
+- Lokalne testy serwera: `cd kuweta/server && pip install -r requirements.txt pytest httpx && python -m pytest -q tests` (ostatnio 31/31).
 
 ## Serwer na homelabie (maszyna `100tb`)
 
@@ -57,6 +57,9 @@ Aplikacja na Androida dla dwóch osób, która wulgarnie przypomina o sprzątani
   - Druga osoba: pn–pt, rotacja tygodniowa `N×5 - - P×5 - - R×5 - -`.
   - Godziny zmian 6–14, 14–22, 22–6.
 - **Ekran Start:** ma się mieścić na jednym ekranie bez przewijania (POCO F7 i Samsung drugiej osoby). Ranking otwiera się przyciskiem pod „Test powiadomienia”/„Rozłącz”, nie ma go na dolnym pasku. Karta „Dziś”: podziałka co 2 h, przesuwanie palcem po 14 dniach (serwer wysyła `timeline` dla każdego dnia w `upcoming`).
+- **Nazwa i ikona:** aplikacja nazywa się „CnC”, w środku logo „CAT&CASH”. Ikona: beżowy i czarny kot z banknotem euro (wariant C). Generator: `kuweta/tools/icon_gen.py` (`python3 tools/icon_gen.py android C android/app/src/main/res`). Pakiet `pl.kuweta.patrol` bez zmian, więc aktualizacja idzie normalnie.
+- **Domowe (hajs), `server/app/money.py`:** składka miesięczna w eurocentach. Admin wybiera, kto przelewa (druga osoba trzyma hajs). Składka za miesiąc M jest do przelania od 24. dnia miesiąca M-1, przypomnienie raz dziennie, aż przelewający kliknie „Przelane”. Trzymający dostaje push i potwierdza „HAJS SIĘ ZGADZA”, przypomnienie raz dziennie do potwierdzenia. Saldo = potwierdzone przelewy + korekty − wydatki, przechodzi na kolejne miesiące, może być na minusie (push do przelewającego przy zejściu pod zero). Zmianę składki proponuje każdy, potwierdza druga osoba (działa od pierwszego nieprzelanego miesiąca). Korektę salda proponuje trzymający, potwierdza przelewający. Wydatki „PRZEPIERDOLONE 💸” zgłasza tylko trzymający: kwota z pola albo kafelków 5/10/15/20/50 €, kafelki kategorii z edytowalnymi nazwami, opis opcjonalny. Każdy wydatek i skasowanie = push do przelewającego.
+- **Dolny pasek:** Start, Grafik, Domowe, Admin. Ranking jest przyciskiem na ekranie Start.
 - **Wygląd:** tylko Brutal (żółto-czarny). Inne motywy usunięte na prośbę użytkownika (kuweta-19), nie przywracaj. Kolory to stałe `Yellow`/`Ink`/`Paper`/... w `Theme.kt`, rozmiary czcionek przez `dsp()`/`bsp()`.
 
 ## Użytkownicy i sprzęt
