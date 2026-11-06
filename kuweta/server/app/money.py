@@ -199,7 +199,8 @@ def state(conn, user: sqlite3.Row) -> dict:
         ).fetchone()[0],
         "expenses": [
             {"id": r["id"], "amount_cents": r["amount"], "category": r["category"], "note": r["note"],
-             "at": r["at"], "user_name": names.get(r["user_id"], "?")}
+             "at": r["at"], "user_name": names.get(r["user_id"], "?"),
+             "can_delete": r["user_id"] == user["id"] or user["id"] == receiver["id"]}
             for r in conn.execute("SELECT * FROM money_expenses WHERE deleted = 0 ORDER BY id DESC LIMIT 15")
         ],
         "proposals": [
@@ -285,13 +286,17 @@ def add_expense(conn, bus: Bus, user, amount: int, category: str, note: str) -> 
 
 
 def delete_expense(conn, bus: Bus, user, expense_id: int) -> dict:
-    payer, receiver = _require(conn, user, "receiver")
+    """Usunąć może ten, kto dodał wydatek (także po zmianie ról), albo obecny trzymający hajs."""
+    payer, receiver = _require(conn, user, "any")
     e = conn.execute("SELECT * FROM money_expenses WHERE id = ? AND deleted = 0", (expense_id,)).fetchone()
     if not e:
         raise ApiError(404, "Nie ma takiego wydatku")
+    if user["id"] not in (e["user_id"], receiver["id"]):
+        raise ApiError(403, "Usunąć może tylko ten, kto dodał wydatek")
     conn.execute("UPDATE money_expenses SET deleted = 1 WHERE id = ?", (expense_id,))
-    bus.notify(payer["id"], "money", "Wydatek skasowany",
-               f"{receiver['name']} usunął(-ęła) {fmt_eur(e['amount'])} ({e['category'] or 'zakupy'}). "
+    other = receiver if user["id"] == payer["id"] else payer
+    bus.notify(other["id"], "money", "Wydatek skasowany",
+               f"{user['name']} usunął(-ęła) {fmt_eur(e['amount'])} ({e['category'] or 'zakupy'}). "
                f"W skarbonce: {fmt_eur(balance(conn))}.")
     bus.state_changed()
     return {"balance_cents": balance(conn)}

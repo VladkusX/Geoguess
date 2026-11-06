@@ -108,3 +108,14 @@ def test_receiver_reminded_to_confirm(env):
     clock["t"] = at(2026, 11, 24, 9)
     money.send_transfer(conn, bus, ub)
     assert money.tick(conn, bus, at(2026, 11, 25, 12)) == [f"money_confirm:{ua['id']}"]
+
+
+def test_author_can_delete_after_role_swap(env):
+    conn, bus, ua, ub, clock = env
+    money.set_payer(conn, bus, ub["id"])  # Vlad trzyma hajs
+    e = money.add_expense(conn, bus, ua, 20_00, "Chemia", "")
+    money.set_payer(conn, bus, ua["id"])  # role zamienione, Vlad przelewa
+    assert money.state(conn, ua)["expenses"][0]["can_delete"] is True
+    money.delete_expense(conn, bus, ua, e["id"])
+    assert money.balance(conn) == 0
+    assert any(n["title"] == "Wydatek skasowany" for n in notes(conn, ub["id"]))

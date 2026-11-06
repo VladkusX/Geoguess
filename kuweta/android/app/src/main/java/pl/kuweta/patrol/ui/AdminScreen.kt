@@ -14,6 +14,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -62,6 +63,7 @@ fun AdminScreen() {
     var data by remember { mutableStateOf<AdminOverview?>(null) }
     var message by remember { mutableStateOf<String?>(null) }
     var pair by remember { mutableStateOf<PairCode?>(null) }
+    val appState by Repo.state.collectAsState()
 
     fun act(block: suspend (Api) -> AdminOverview?, done: String? = null) {
         scope.launch {
@@ -92,6 +94,17 @@ fun AdminScreen() {
         }
 
         CatsCard(d.cats, onSave = { list -> act({ it.setCats(list) }, "Koty zapisane") })
+
+        val payerId = appState?.money?.payer?.id
+        BrutalCard {
+            SectionTitle("Domowe: kto przelewa składkę")
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                d.users.forEach { u ->
+                    Chip(u.name, payerId == u.id, { act({ it.moneyRoles(u.id); null }, "Zapisane: przelewa ${u.name}") })
+                }
+            }
+            Text("Druga osoba trzyma hajs i zgłasza wydatki.", style = MaterialTheme.typography.bodySmall)
+        }
 
         SoundsCard(d, onResult = { data = it }, onMessage = { message = it })
 

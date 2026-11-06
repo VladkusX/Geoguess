@@ -101,6 +101,7 @@ data class Expense(
     val note: String = "",
     val at: String,
     @SerialName("user_name") val userName: String = "",
+    @SerialName("can_delete") val canDelete: Boolean = false,
 )
 
 @Serializable

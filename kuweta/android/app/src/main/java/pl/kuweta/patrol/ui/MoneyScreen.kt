@@ -8,16 +8,15 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -110,12 +109,12 @@ fun MoneyScreen() {
         }
     }
 
+    // Cała zakładka mieści się na jednym ekranie. Przewija się tylko lista wydatków, gdy jest długa.
     Column(
         Modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 14.dp, vertical = 10.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Banknotes()
         val s = state
@@ -131,17 +130,18 @@ fun MoneyScreen() {
         }
         val payer = m.role == "payer"
 
-        ContributionCard(m, onEdit = { amountDialog = true })
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ContributionCard(m, Modifier.weight(1f), onEdit = { amountDialog = true })
+            PiggyCard(m, Modifier.weight(1f), canFix = !payer, onFix = { balanceDialog = true })
+        }
 
         m.proposals.forEach { p ->
             val what = if (p.kind == "amount") "składka ${eur(p.valueCents)}" else "skarbonka ${eur(p.valueCents)}"
             BrutalCard(bg = if (p.mine) Paper else Orange) {
                 if (p.mine) {
-                    Text("CZEKA NA ZGODĘ", style = MaterialTheme.typography.titleMedium)
-                    Text("Proponujesz: $what.")
+                    Text("Czeka na zgodę: $what", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodySmall)
                 } else {
-                    Text("${p.proposerName.uppercase()} PROPONUJE", style = MaterialTheme.typography.titleMedium, color = Paper)
-                    Text(what.replaceFirstChar { it.uppercase() }, color = Paper, fontWeight = FontWeight.Bold)
+                    Text("${p.proposerName.uppercase()} PROPONUJE: ${what.uppercase()}", style = MaterialTheme.typography.titleMedium.copy(fontSize = dsp(13)), color = Paper)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         BrutalButton("Zgoda", { act({ it.moneyDecide(p.id, true) }, "Zgoda wysłana") }, Modifier.weight(1f), bg = Paper, fg = Ink, enabled = !busy, small = true)
                         BrutalButton("Odmowa", { act({ it.moneyDecide(p.id, false) }, "Odmowa wysłana") }, Modifier.weight(1f), enabled = !busy, small = true)
@@ -150,29 +150,27 @@ fun MoneyScreen() {
             }
         }
 
-        PeopleCard(m)
         val transferId = m.transferId
-        when {
-            payer && m.periodStatus in listOf("due", "not_due") -> BrutalButton(
-                "Przelane 💶 ${eur(m.transferCents)}",
-                { act({ it.moneyTransfer() }, "Zgłoszone. ${m.receiver?.name} sprawdzi konto.") },
-                bg = Mint, fg = Ink, enabled = !busy,
-            )
-            !payer && m.periodStatus == "sent" && transferId != null -> BrutalButton(
-                "HAJS SIĘ ZGADZA ✔",
-                { act({ it.moneyConfirm(transferId) }, "Potwierdzone. Hajs w skarbonce.") },
-                bg = Mint, fg = Ink, enabled = !busy,
-            )
+        PeopleCard(m) {
+            when {
+                payer && m.periodStatus in listOf("due", "not_due") -> BrutalButton(
+                    "Przelane 💶 ${eur(m.transferCents)}",
+                    { act({ it.moneyTransfer() }, "Zgłoszone. ${m.receiver?.name} sprawdzi konto.") },
+                    bg = Mint, fg = Ink, enabled = !busy, small = true,
+                )
+                !payer && m.periodStatus == "sent" && transferId != null -> BrutalButton(
+                    "HAJS SIĘ ZGADZA ✔",
+                    { act({ it.moneyConfirm(transferId) }, "Potwierdzone. Hajs w skarbonce.") },
+                    bg = Mint, fg = Ink, enabled = !busy, small = true,
+                )
+            }
         }
 
-        PiggyCard(m, canFix = !payer, onFix = { balanceDialog = true })
         if (!payer) {
             BrutalButton("Przepierdolone 💸", { expenseDialog = true }, bg = Orange, fg = Paper, enabled = !busy)
         }
-        message?.let { Text(it, fontWeight = FontWeight.Bold) }
-        ExpensesCard(m, canDelete = !payer, onDelete = { deleteExpense = it })
-        if (s.me.isAdmin) RolesCard(s, m, busy) { id -> act({ it.moneyRoles(id) }, "Zapisane") }
-        Spacer(Modifier.height(8.dp))
+        message?.let { Text(it, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodySmall) }
+        ExpensesCard(m, Modifier.weight(1f, fill = false), onDelete = { deleteExpense = it })
     }
 
     val m = state?.money ?: return
@@ -214,7 +212,7 @@ fun MoneyScreen() {
         AlertDialog(
             onDismissRequest = { deleteExpense = null },
             title = { Text("Skasować wydatek?", style = MaterialTheme.typography.titleMedium) },
-            text = { Text("${eur(e.amountCents)} · ${e.category.ifBlank { "zakupy" }}. ${m.payer?.name} dostanie powiadomienie.") },
+            text = { Text("${eur(e.amountCents)} · ${e.category.ifBlank { "zakupy" }}. Druga osoba dostanie powiadomienie.") },
             confirmButton = {
                 TextButton(onClick = {
                     deleteExpense = null
@@ -230,11 +228,11 @@ fun MoneyScreen() {
 /** Wachlarz banknotów i kilka monet, żeby czuć bogactwo w powietrzu. */
 @Composable
 private fun Banknotes() {
-    Box(Modifier.fillMaxWidth().height(150.dp), contentAlignment = Alignment.Center) {
-        listOf(-14f to 100, 9f to 50, -3f to 20).forEachIndexed { i, (angle, value) ->
-            Note(value, NOTE_COLORS[i], Modifier.rotate(angle).offset(x = ((i - 1) * 14).dp, y = (i * 4 - 4).dp))
+    Box(Modifier.fillMaxWidth().height(84.dp), contentAlignment = Alignment.Center) {
+        listOf(-12f to 100, 8f to 50, -3f to 20).forEachIndexed { i, (angle, value) ->
+            Note(value, NOTE_COLORS[i], Modifier.rotate(angle).offset(x = ((i - 1) * 12).dp, y = (i * 3 - 3).dp))
         }
-        listOf(Triple(-120, -50, 26), Triple(118, -44, 22), Triple(-104, 52, 20), Triple(126, 48, 28)).forEach { (x, y, size) ->
+        listOf(Triple(-96, -24, 20), Triple(96, -22, 18), Triple(-84, 26, 16), Triple(100, 24, 22)).forEach { (x, y, size) ->
             Coin(Modifier.offset(x = x.dp, y = y.dp), size)
         }
     }
@@ -244,27 +242,26 @@ private fun Banknotes() {
 private fun Note(value: Int, color: Color, modifier: Modifier = Modifier) {
     Row(
         modifier
-            .size(width = 210.dp, height = 104.dp)
+            .size(width = 150.dp, height = 66.dp)
             .background(color)
-            .border(3.dp, Ink)
-            .padding(8.dp),
+            .border(2.5.dp, Ink)
+            .padding(6.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Box(
             Modifier
-                .size(62.dp)
+                .size(42.dp)
                 .clip(CircleShape)
                 .background(Paper.copy(alpha = 0.75f))
                 .border(2.dp, Ink, CircleShape),
             contentAlignment = Alignment.Center,
         ) {
-            Text("€", style = MaterialTheme.typography.headlineLarge.copy(fontSize = dsp(36)), color = Ink)
+            Text("€", style = MaterialTheme.typography.headlineLarge.copy(fontSize = dsp(24), lineHeight = dsp(26)), color = Ink)
         }
         Column(Modifier.weight(1f), horizontalAlignment = Alignment.End) {
-            Text("CAT&CASH", style = MaterialTheme.typography.labelLarge.copy(fontSize = dsp(11)), color = Ink)
-            Text("$value", style = MaterialTheme.typography.headlineLarge.copy(fontSize = dsp(40)), color = Ink)
-            Text("EURO · MIAU", style = MaterialTheme.typography.bodySmall.copy(fontSize = bsp(9)), color = Ink)
+            Text("CAT&CASH", style = MaterialTheme.typography.labelLarge.copy(fontSize = dsp(8)), color = Ink)
+            Text("$value", style = MaterialTheme.typography.headlineLarge.copy(fontSize = dsp(26), lineHeight = dsp(28)), color = Ink)
         }
     }
 }
@@ -279,39 +276,45 @@ private fun Coin(modifier: Modifier, size: Int) {
             .border(2.dp, Ink, CircleShape),
         contentAlignment = Alignment.Center,
     ) {
-        Text("€", fontWeight = FontWeight.Bold, color = Ink, style = MaterialTheme.typography.bodySmall)
+        Text("€", fontWeight = FontWeight.Bold, color = Ink, style = MaterialTheme.typography.bodySmall.copy(fontSize = bsp(9)))
     }
 }
 
 @Composable
-private fun ContributionCard(m: Money, onEdit: () -> Unit) {
-    BrutalCard(bg = Ink) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("SKŁADKA NA MIESIĄC", style = MaterialTheme.typography.titleMedium.copy(fontSize = dsp(14)), color = Yellow, modifier = Modifier.weight(1f))
-            Chip("Zmień ✎", false, onEdit)
-        }
-        Row(verticalAlignment = Alignment.Bottom) {
-            Text("✦ ", color = Yellow, style = MaterialTheme.typography.titleLarge)
-            Text(
-                if (m.amountCents > 0) eur(m.amountCents) else "? €",
-                style = MaterialTheme.typography.headlineLarge.copy(fontSize = dsp(46), lineHeight = dsp(48)),
-                color = Mint,
-            )
-            Text(" / mies. ✦", color = Yellow, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(bottom = 6.dp))
-        }
+private fun ContributionCard(m: Money, modifier: Modifier, onEdit: () -> Unit) {
+    BrutalCard(modifier, bg = Ink) {
+        Text("✦ SKŁADKA ✦", style = MaterialTheme.typography.titleMedium.copy(fontSize = dsp(12)), color = Yellow)
+        Text(
+            if (m.amountCents > 0) eur(m.amountCents) else "? €",
+            style = MaterialTheme.typography.headlineLarge.copy(fontSize = dsp(28), lineHeight = dsp(30)),
+            color = Mint, maxLines = 1,
+        )
         val due = shortDate(m.dueDate)
+        val month = monthName(m.period).substringBefore(" ")
         val (line, color) = when (m.periodStatus) {
-            "due" -> "Za ${monthName(m.period)}: do przelania od $due" to Orange
-            "sent" -> "Za ${monthName(m.period)}: przelane, czeka na HAJS SIĘ ZGADZA" to Yellow
-            "not_due" -> "Za ${monthName(m.period)}: przelew od $due" to Paper
-            else -> "Za ${monthName(m.period)}: zrobione" to Mint
+            "due" -> "$month: przelej od $due" to Orange
+            "sent" -> "$month: czeka na potw." to Yellow
+            "not_due" -> "$month: od $due" to Paper
+            else -> "$month: zrobione ✔" to Mint
         }
-        Text(line, color = color, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodySmall)
+        Text(line, color = color, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodySmall.copy(fontSize = bsp(10)), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Chip("Zmień ✎", false, onEdit)
     }
 }
 
 @Composable
-private fun PeopleCard(m: Money) {
+private fun PiggyCard(m: Money, modifier: Modifier, canFix: Boolean, onFix: () -> Unit) {
+    val minus = m.balanceCents < 0
+    BrutalCard(modifier, bg = if (minus) Orange else Paper) {
+        Text(if (minus) "NA MINUSIE" else "SKARBONKA", style = MaterialTheme.typography.titleMedium.copy(fontSize = dsp(12)))
+        Text(eur(m.balanceCents), style = MaterialTheme.typography.headlineLarge.copy(fontSize = dsp(28), lineHeight = dsp(30)), maxLines = 1)
+        Text("Wydane w mies.: ${eur(m.spentMonthCents)}", style = MaterialTheme.typography.bodySmall.copy(fontSize = bsp(10)), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        if (canFix) Chip("Popraw", false, onFix)
+    }
+}
+
+@Composable
+private fun PeopleCard(m: Money, action: @Composable () -> Unit) {
     BrutalCard {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             NameTag(m.payer?.name ?: "?", "przelewa", Modifier.weight(1f), highlight = m.role == "payer")
@@ -324,6 +327,7 @@ private fun PeopleCard(m: Money) {
             else -> null
         }
         text?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+        action()
     }
 }
 
@@ -333,41 +337,30 @@ private fun NameTag(name: String, label: String, modifier: Modifier, highlight: 
         modifier
             .background(if (highlight) Yellow else Paper)
             .border(2.dp, Ink)
-            .padding(vertical = 6.dp, horizontal = 4.dp),
+            .padding(vertical = 4.dp, horizontal = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(name.uppercase(), style = MaterialTheme.typography.titleMedium.copy(fontSize = dsp(15)), maxLines = 1, overflow = TextOverflow.Ellipsis)
-        Text(label, style = MaterialTheme.typography.bodySmall.copy(fontSize = bsp(10)))
+        Text(name.uppercase(), style = MaterialTheme.typography.titleMedium.copy(fontSize = dsp(14)), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(label, style = MaterialTheme.typography.bodySmall.copy(fontSize = bsp(9)))
     }
 }
 
 @Composable
-private fun PiggyCard(m: Money, canFix: Boolean, onFix: () -> Unit) {
-    val minus = m.balanceCents < 0
-    BrutalCard(bg = if (minus) Orange else Paper) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(if (minus) "SKARBONKA NA MINUSIE" else "W SKARBONCE", style = MaterialTheme.typography.titleMedium.copy(fontSize = dsp(14)), modifier = Modifier.weight(1f))
-            if (canFix) Chip("Popraw", false, onFix)
-        }
-        Text(eur(m.balanceCents), style = MaterialTheme.typography.headlineLarge.copy(fontSize = dsp(34), lineHeight = dsp(36)))
-        Text("W tym miesiącu przepierdolone: ${eur(m.spentMonthCents)}", style = MaterialTheme.typography.bodySmall)
-    }
-}
-
-@Composable
-private fun ExpensesCard(m: Money, canDelete: Boolean, onDelete: (Expense) -> Unit) {
+private fun ExpensesCard(m: Money, modifier: Modifier, onDelete: (Expense) -> Unit) {
     if (m.expenses.isEmpty()) return
-    BrutalCard {
-        Text("OSTATNIO PRZEPIERDOLONE", style = MaterialTheme.typography.titleMedium.copy(fontSize = dsp(14)))
-        m.expenses.forEach { e ->
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(shortDate(e.at), style = MaterialTheme.typography.bodySmall)
-                Text(
-                    listOf(e.category, e.note).filter { it.isNotBlank() }.joinToString(" · ").ifBlank { "zakupy" },
-                    maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
-                )
-                Text(eur(e.amountCents), fontWeight = FontWeight.Bold)
-                if (canDelete) Chip("✖", false, { onDelete(e) })
+    BrutalCard(modifier) {
+        Text("OSTATNIO PRZEPIERDOLONE", style = MaterialTheme.typography.titleMedium.copy(fontSize = dsp(13)))
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            items(m.expenses, key = { it.id }) { e ->
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(shortDate(e.at), style = MaterialTheme.typography.bodySmall)
+                    Text(
+                        listOf(e.category, e.note).filter { it.isNotBlank() }.joinToString(" · ").ifBlank { "zakupy" },
+                        maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
+                    )
+                    Text(eur(e.amountCents), fontWeight = FontWeight.Bold)
+                    if (e.canDelete) Chip("✖", false, { onDelete(e) })
+                }
             }
         }
     }
@@ -383,7 +376,7 @@ private fun RolesCard(s: AppState, m: Money?, busy: Boolean, onPick: (Int) -> Un
                 Chip(u.name, m?.payer?.id == u.id, { if (!busy) onPick(u.id) })
             }
         }
-        Text("Druga osoba automatycznie trzyma hajs i zgłasza wydatki.", style = MaterialTheme.typography.bodySmall)
+        Text("Druga osoba automatycznie trzyma hajs i zgłasza wydatki. Później zmienisz to w zakładce Admin.", style = MaterialTheme.typography.bodySmall)
     }
 }
 
