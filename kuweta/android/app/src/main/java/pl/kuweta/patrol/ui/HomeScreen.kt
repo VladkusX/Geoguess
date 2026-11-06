@@ -116,11 +116,8 @@ fun HomeScreen(onLogout: () -> Unit, onRanking: () -> Unit) {
             Spacer(Modifier.weight(1f))
             ConnectionDot(connected)
         }
-        when {
-            duty == null -> Sticker("Czekam na drugą osobę", bg = Ink, fg = Yellow)
-            duty.isMe -> Sticker("Twój dyżur")
-            else -> Sticker("Dyżur: ${duty.assigneeName}", bg = Ink, fg = Yellow)
-        }
+        // Naklejka „Dyżur: …” tylko bez pary. Kto ma dyżur, mówi nagłówek, a ekran ma się mieścić bez przewijania.
+        if (duty == null) Sticker("Czekam na drugą osobę", bg = Ink, fg = Yellow)
 
         Text(
             headline(s).uppercase(),
